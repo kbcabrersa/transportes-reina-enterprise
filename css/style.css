@@ -1544,3 +1544,117 @@ body.enterprise-body{
     grid-column:1 / -1 !important;
 }
 
+
+.paginacion-clientes{
+    margin-top:18px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:18px;
+}
+
+.paginacion-clientes button{
+    padding:10px 18px;
+    border:none;
+    border-radius:10px;
+    background:var(--verde);
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.paginacion-clientes button:disabled{
+    background:#94a3b8;
+    cursor:not-allowed;
+}
+
+@media print{
+    @page{
+        size:letter portrait;
+        margin:8mm;
+    }
+
+    body *{
+        visibility:hidden !important;
+    }
+
+    .cliente-modal,
+    .cliente-modal *{
+        visibility:visible !important;
+    }
+
+    .cliente-modal{
+        position:absolute !important;
+        inset:0 !important;
+        padding:0 !important;
+        background:white !important;
+        overflow:visible !important;
+    }
+
+    .cliente-perfil{
+        width:100% !important;
+        max-width:100% !important;
+        padding:10px !important;
+        margin:0 !important;
+        box-shadow:none !important;
+        border-radius:0 !important;
+        transform:scale(.78);
+        transform-origin:top left;
+    }
+
+    .cerrar-modal,
+    .cliente-perfil button{
+        display:none !important;
+    }
+
+    .foto-ficha-pro{
+        height:150px !important;
+    }
+
+    .ficha-top{
+        grid-template-columns:220px 1fr !important;
+        gap:15px !important;
+        margin-bottom:10px !important;
+        padding-bottom:10px !important;
+    }
+
+    .resumen-cliente{
+        grid-template-columns:repeat(4,1fr) !important;
+        gap:8px !important;
+        margin-bottom:10px !important;
+    }
+
+    .resumen-cliente div{
+        padding:8px !important;
+    }
+
+    .ficha-grid-pro{
+        grid-template-columns:1fr 1fr !important;
+        gap:10px !important;
+    }
+
+    .info-box,
+    .indicadores-pro,
+    .historial-cliente{
+        padding:10px !important;
+    }
+
+    .anillo-pro{
+        width:95px !important;
+        height:95px !important;
+        border-width:8px !important;
+    }
+
+    .anillo-pro span{
+        font-size:18px !important;
+    }
+
+    .historial-cliente{
+        margin-top:10px !important;
+    }
+
+    th,td{
+        padding:6px !important;
+        font-size:11px !important;
+    }
+}

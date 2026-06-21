@@ -35,7 +35,7 @@ async function cargarDatosEnterprise(){
 
     renderKpis();
     renderDashboard();
-    renderClientes(clientes);
+    renderClientesPaginados(clientes);
     renderSolicitudes();
 }
 
@@ -156,7 +156,7 @@ function filtrarClientes(){
         return matchTexto && matchRuta && matchEstado;
     });
 
-    renderClientes(filtrados);
+    paginaClientes = 1; renderClientesPaginados(filtrados);
 }
 
 document.addEventListener("input", e=>{
@@ -483,3 +483,123 @@ function cerrarGraficaGrande(){
 
 setTimeout(registrarClickGraficas, 1500);
 
+
+let paginaClientes = 1;
+const CLIENTES_POR_PAGINA = 20;
+let clientesFiltradosActuales = [];
+
+function renderClientesPaginados(lista){
+    clientesFiltradosActuales = lista;
+    const tbody = document.querySelector("#tablaClientes tbody");
+    if(!tbody) return;
+
+    tbody.innerHTML = "";
+
+    const inicio = (paginaClientes - 1) * CLIENTES_POR_PAGINA;
+    const fin = inicio + CLIENTES_POR_PAGINA;
+    const pagina = lista.slice(inicio, fin);
+
+    pagina.forEach(c=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${c.nombre || ""}</td>
+            <td>${c.ruta || ""}</td>
+            <td>${c.lugar || ""}</td>
+            <td>${activo(c) ? "Activo" : "Inactivo"}</td>
+            <td>${formatearFecha(c.updatedAt)}</td>
+        `;
+        tr.onclick = ()=>abrirPerfilCliente(c);
+        tbody.appendChild(tr);
+    });
+
+    renderPaginacionClientes(lista.length);
+}
+
+function renderPaginacionClientes(total){
+    let pag = document.getElementById("paginacionClientes");
+
+    if(!pag){
+        pag = document.createElement("div");
+        pag.id = "paginacionClientes";
+        pag.className = "paginacion-clientes";
+        document.getElementById("tablaClientes").after(pag);
+    }
+
+    const totalPaginas = Math.ceil(total / CLIENTES_POR_PAGINA);
+
+    pag.innerHTML = `
+        <button onclick="cambiarPaginaClientes(-1)" ${paginaClientes<=1 ? "disabled" : ""}>Anterior</button>
+        <span>Página ${paginaClientes} de ${totalPaginas}</span>
+        <button onclick="cambiarPaginaClientes(1)" ${paginaClientes>=totalPaginas ? "disabled" : ""}>Siguiente</button>
+    `;
+}
+
+function cambiarPaginaClientes(dir){
+    const totalPaginas = Math.ceil(clientesFiltradosActuales.length / CLIENTES_POR_PAGINA);
+    paginaClientes += dir;
+
+    if(paginaClientes < 1) paginaClientes = 1;
+    if(paginaClientes > totalPaginas) paginaClientes = totalPaginas;
+
+    renderClientesPaginados(clientesFiltradosActuales);
+}
+
+let paginaClientes = 1;
+const CLIENTES_POR_PAGINA = 20;
+let clientesFiltradosActuales = [];
+
+function renderClientesPaginados(lista){
+    clientesFiltradosActuales = lista;
+    const tbody = document.querySelector("#tablaClientes tbody");
+    if(!tbody) return;
+
+    tbody.innerHTML = "";
+
+    const inicio = (paginaClientes - 1) * CLIENTES_POR_PAGINA;
+    const fin = inicio + CLIENTES_POR_PAGINA;
+    const pagina = lista.slice(inicio, fin);
+
+    pagina.forEach(c=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${c.nombre || ""}</td>
+            <td>${c.ruta || ""}</td>
+            <td>${c.lugar || ""}</td>
+            <td>${activo(c) ? "Activo" : "Inactivo"}</td>
+            <td>${formatearFecha(c.updatedAt)}</td>
+        `;
+        tr.onclick = ()=>abrirPerfilCliente(c);
+        tbody.appendChild(tr);
+    });
+
+    renderPaginacionClientes(lista.length);
+}
+
+function renderPaginacionClientes(total){
+    let pag = document.getElementById("paginacionClientes");
+
+    if(!pag){
+        pag = document.createElement("div");
+        pag.id = "paginacionClientes";
+        pag.className = "paginacion-clientes";
+        document.getElementById("tablaClientes").after(pag);
+    }
+
+    const totalPaginas = Math.ceil(total / CLIENTES_POR_PAGINA);
+
+    pag.innerHTML = `
+        <button onclick="cambiarPaginaClientes(-1)" ${paginaClientes<=1 ? "disabled" : ""}>Anterior</button>
+        <span>Página ${paginaClientes} de ${totalPaginas}</span>
+        <button onclick="cambiarPaginaClientes(1)" ${paginaClientes>=totalPaginas ? "disabled" : ""}>Siguiente</button>
+    `;
+}
+
+function cambiarPaginaClientes(dir){
+    const totalPaginas = Math.ceil(clientesFiltradosActuales.length / CLIENTES_POR_PAGINA);
+    paginaClientes += dir;
+
+    if(paginaClientes < 1) paginaClientes = 1;
+    if(paginaClientes > totalPaginas) paginaClientes = totalPaginas;
+
+    renderClientesPaginados(clientesFiltradosActuales);
+}
