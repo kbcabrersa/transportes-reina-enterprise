@@ -110,7 +110,7 @@ function renderClientes(lista){
 
     tbody.innerHTML = "";
 
-    lista.forEach(c=>{
+    lista.slice(0,30).forEach(c=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${c.nombre || ""}</td>

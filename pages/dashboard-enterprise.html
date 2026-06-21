@@ -12,9 +12,9 @@
     <div class="side-logo"><h2>Transportes<br><span>REINA</span></h2></div>
 
     <a href="../index.html">Inicio</a>
-    <a href="#dashboard">Dashboard</a>
-    <a href="#clientes" class="activo">Clientes</a>
-    <a href="#solicitudes">Solicitudes</a>
+    <a href="#dashboard" class="tab-link activo" data-tab="dashboard">Dashboard</a>
+    <a href="#clientes" class="tab-link" data-tab="clientes">Clientes</a>
+    <a href="#solicitudes" class="tab-link" data-tab="solicitudes">Solicitudes</a>
     <a href="#cobros">Cobros</a>
     <a href="#operativo">Operativo</a>
     <a href="#informes">Informes</a>
@@ -36,7 +36,7 @@
     </div>
 </header>
 
-<section id="dashboard" class="enterprise-section">
+<section id="dashboard" class="enterprise-section tab-section active">
     <h2>Dashboard Operativo</h2>
 
     <div class="dashboard-resumen">
@@ -59,7 +59,7 @@
     </div>
 </section>
 
-<section id="clientes" class="enterprise-section">
+<section id="clientes" class="enterprise-section tab-section">
     <div class="section-head">
         <h2>Clientes</h2>
         <button class="btn-mini naranja">Exportar Informe</button>
@@ -94,7 +94,7 @@
     </table>
 </section>
 
-<section id="solicitudes" class="enterprise-section">
+<section id="solicitudes" class="enterprise-section tab-section">
     <h2>Solicitudes de Servicio</h2>
     <table>
         <thead>
@@ -104,6 +104,13 @@
     </table>
 </section>
 
+<div id="chartModal" class="chart-modal" onclick="cerrarGraficaGrande()">
+    <div class="chart-modal-card" onclick="event.stopPropagation()">
+        <button class="cerrar-modal" onclick="cerrarGraficaGrande()">×</button>
+        <h2 id="chartModalTitulo">Gráfica</h2>
+        <canvas id="chartGrande"></canvas>
+    </div>
+</div>
 </main>
 
 <script src="../js/dashboard-enterprise.js"></script>
