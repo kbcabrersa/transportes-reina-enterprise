@@ -434,3 +434,47 @@ footer{
     color:var(--verde);
     margin-bottom:15px;
 }
+
+.servicios-detalle{
+    padding:90px 50px;
+    background:var(--claro);
+    text-align:center;
+}
+
+.servicios-detalle h2{
+    font-size:42px;
+    color:var(--oscuro);
+    margin-bottom:15px;
+}
+
+.intro-servicios{
+    max-width:850px;
+    margin:0 auto 45px;
+    font-size:18px;
+    line-height:1.7;
+}
+
+.servicios-lista{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+    gap:25px;
+    text-align:left;
+}
+
+.servicio-item{
+    background:white;
+    padding:30px;
+    border-radius:18px;
+    box-shadow:0 8px 25px rgba(0,0,0,.1);
+    border-left:6px solid var(--verde);
+}
+
+.servicio-item h3{
+    color:var(--verde);
+    margin-bottom:15px;
+}
+
+.servicio-item p{
+    margin-bottom:12px;
+    line-height:1.6;
+}
