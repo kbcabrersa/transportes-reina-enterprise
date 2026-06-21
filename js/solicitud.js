@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwCS9gPUFRJyDUTXJzAYi33aDP3fkhGskAmERtBFtLN-e3QegDsKZdAZQyZwIAsBPo7EQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw0O1_AygYiYijYAqqV6IPUSs6vz4Kf4h2JrbkW6vI78soN5Al6jzC3uNV3c73yVtF32A/exec";
 
 const mapa = L.map("mapaSolicitud").setView([16.331, -89.416], 14);
 
