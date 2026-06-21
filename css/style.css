@@ -1229,3 +1229,35 @@ tr:hover{
         flex-wrap:wrap;
     }
 }
+
+.analytics-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:22px;
+    margin-top:30px;
+}
+
+.analytics-card{
+    background:white;
+    border-radius:18px;
+    padding:28px;
+    box-shadow:0 8px 25px rgba(0,0,0,.10);
+    border-left:6px solid var(--naranja);
+}
+
+.analytics-card h3{
+    color:var(--oscuro);
+    margin-bottom:15px;
+}
+
+.analytics-card strong{
+    display:block;
+    font-size:34px;
+    color:var(--verde);
+    margin-bottom:8px;
+}
+
+.analytics-card p{
+    color:#334155;
+    font-size:16px;
+}
