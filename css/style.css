@@ -1658,3 +1658,63 @@ body.enterprise-body{
         font-size:11px !important;
     }
 }
+
+/* RESET FINAL ENTERPRISE - NO TOCAR ARRIBA */
+body.enterprise-body{
+    margin:0 !important;
+    padding:0 !important;
+    display:block !important;
+    background:#eef2f7 !important;
+    overflow-x:hidden !important;
+}
+
+.enterprise-sidebar{
+    width:180px !important;
+    position:fixed !important;
+    left:0 !important;
+    top:0 !important;
+    bottom:0 !important;
+    min-height:100vh !important;
+    z-index:500 !important;
+}
+
+.enterprise-main{
+    margin-left:180px !important;
+    width:calc(100vw - 180px) !important;
+    max-width:none !important;
+    min-height:100vh !important;
+    overflow-x:hidden !important;
+}
+
+.enterprise-topbar{
+    width:100% !important;
+    position:sticky !important;
+    top:0 !important;
+    z-index:400 !important;
+}
+
+.enterprise-section{
+    width:100% !important;
+    max-width:1500px !important;
+    margin:0 auto !important;
+    padding:40px 50px !important;
+}
+
+table{
+    width:100% !important;
+}
+
+@media print{
+    .historial-cliente{
+        display:none !important;
+    }
+
+    .cliente-perfil{
+        transform:scale(.86) !important;
+        transform-origin:top left !important;
+    }
+
+    .cliente-modal{
+        overflow:hidden !important;
+    }
+}
