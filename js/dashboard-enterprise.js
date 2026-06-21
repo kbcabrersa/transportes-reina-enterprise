@@ -6,27 +6,52 @@ if(localStorage.getItem("enterpriseAuth") !== "true"){
 
 let clientes = [];
 let eventos = [];
+let solicitudes = [];
 
 function cerrarSesion(){
-    localStorage.removeItem("enterpriseAuth");
-    localStorage.removeItem("enterpriseUser");
+    localStorage.clear();
     window.location.href = "login-enterprise.html";
 }
 
 async function cargarDatosEnterprise(){
-    try{
-        const resClientes = await fetch(API_URL + "?action=clientes");
-        clientes = await resClientes.json();
+    const resClientes = await fetch(API_URL + "?action=clientes");
+    clientes = await resClientes.json();
 
-        const resEventos = await fetch(API_URL + "?action=eventos");
-        eventos = await resEventos.json();
+    const resEventos = await fetch(API_URL + "?action=eventos");
+    eventos = await resEventos.json();
 
-        renderClientes(clientes);
-        actualizarKpisClientes();
+    const resSolicitudes = await fetch(API_URL + "?action=listarSolicitudes");
+    const dataSolicitudes = await resSolicitudes.json();
+    solicitudes = dataSolicitudes.solicitudes || [];
 
-    }catch(error){
-        console.error("Error cargando datos Enterprise:", error);
-    }
+    renderClientes(clientes);
+    renderDashboardReal();
+}
+
+function renderDashboardReal(){
+    const activos = clientes.filter(c => c.activo === true || c.activo === "true").length;
+    const inactivos = clientes.length - activos;
+    const pendientes = solicitudes.filter(s => s.estado === "PENDIENTE").length;
+    const eventosHoy = eventos.filter(e => {
+        const f = String(e.fecha || "");
+        const hoy = new Date().toISOString().slice(0,10);
+        return f.startsWith(hoy);
+    }).length;
+
+    cambiarTexto("kpiClientes", clientes.length);
+    cambiarTexto("kpiActivos", activos);
+    cambiarTexto("kpiInactivos", inactivos);
+    cambiarTexto("kpiSolicitudes", pendientes);
+
+    cambiarTexto("dashClientes", activos);
+    cambiarTexto("dashPuntos", clientes.length);
+    cambiarTexto("dashAtenciones", eventosHoy);
+    cambiarTexto("dashSolicitudes", pendientes);
+}
+
+function cambiarTexto(id, valor){
+    const el = document.getElementById(id);
+    if(el) el.textContent = valor;
 }
 
 function renderClientes(lista){
@@ -34,6 +59,11 @@ function renderClientes(lista){
     if(!tbody) return;
 
     tbody.innerHTML = "";
+
+    if(lista.length === 0){
+        tbody.innerHTML = `<tr><td colspan="5">No hay clientes registrados.</td></tr>`;
+        return;
+    }
 
     lista.forEach(cliente => {
         const tr = document.createElement("tr");
@@ -43,26 +73,12 @@ function renderClientes(lista){
             <td>${cliente.ruta || ""}</td>
             <td>${cliente.lugar || ""}</td>
             <td>${cliente.activo === true || cliente.activo === "true" ? "Activo" : "Inactivo"}</td>
-            <td>${cliente.updatedAt || ""}</td>
+            <td>${formatearFecha(cliente.updatedAt)}</td>
         `;
 
         tr.addEventListener("click", () => abrirPerfilCliente(cliente));
-
         tbody.appendChild(tr);
     });
-}
-
-function actualizarKpisClientes(){
-    const activos = clientes.filter(c => c.activo === true || c.activo === "true").length;
-    const inactivos = clientes.length - activos;
-
-    const kpiClientes = document.querySelector("#kpiClientes");
-    const kpiActivos = document.querySelector("#kpiActivos");
-    const kpiInactivos = document.querySelector("#kpiInactivos");
-
-    if(kpiClientes) kpiClientes.textContent = clientes.length;
-    if(kpiActivos) kpiActivos.textContent = activos;
-    if(kpiInactivos) kpiInactivos.textContent = inactivos;
 }
 
 function abrirPerfilCliente(cliente){
@@ -91,17 +107,16 @@ function abrirPerfilCliente(cliente){
                     </span>
                 </div>
 
-                <button class="btn-mini naranja" onclick="exportarFichaCliente()">
+                <button class="btn-mini naranja" onclick="window.print()">
                     Exportar Ficha PDF
                 </button>
             </div>
 
-            <div class="perfil-grid" id="fichaClientePdf">
+            <div class="perfil-grid">
                 <div class="perfil-datos">
                     <img src="${foto}" class="foto-cliente">
 
                     <h3>Información del Cliente</h3>
-
                     <p><strong>Nombre:</strong> ${cliente.nombre || ""}</p>
                     <p><strong>Teléfono:</strong> ${cliente.telefono || ""}</p>
                     <p><strong>Ruta:</strong> ${cliente.ruta || ""}</p>
@@ -109,33 +124,14 @@ function abrirPerfilCliente(cliente){
                     <p><strong>Día de Pago:</strong> ${cliente.diaPago || ""}</p>
                     <p><strong>Tipo de Servicio:</strong> ${cliente.tipoServicio || ""}</p>
                     <p><strong>Precio:</strong> Q${cliente.precio || "0"}</p>
-                    <p><strong>Lat:</strong> ${cliente.lat || ""}</p>
-                    <p><strong>Lng:</strong> ${cliente.lng || ""}</p>
-                    <p><strong>Actualizado:</strong> ${cliente.updatedAt || ""}</p>
+                    <p><strong>Ubicación:</strong> ${cliente.lat || ""}, ${cliente.lng || ""}</p>
                 </div>
 
                 <div class="perfil-indicadores">
                     <h3>Indicadores</h3>
-
-                    <div class="anillo">
-                        <span>85%</span>
-                        <p>Atenciones</p>
-                    </div>
-
-                    <div class="anillo">
-                        <span>70%</span>
-                        <p>Cobros</p>
-                    </div>
-
-                    <div class="anillo">
-                        <span>15%</span>
-                        <p>Pendientes</p>
-                    </div>
-
-                    <div class="anillo">
-                        <span>5%</span>
-                        <p>Incidencias</p>
-                    </div>
+                    <div class="anillo"><span>${historial.length}</span><p>Eventos</p></div>
+                    <div class="anillo"><span>${cliente.activo === true || cliente.activo === "true" ? "OK" : "NO"}</span><p>Estado</p></div>
+                    <div class="anillo"><span>Q${cliente.precio || "0"}</span><p>Cuota</p></div>
                 </div>
             </div>
 
@@ -145,10 +141,9 @@ function abrirPerfilCliente(cliente){
                 <table>
                     <thead>
                         <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Detalle</th>
-                            <th>Usuario</th>
+                            <th>Cuándo</th>
+                            <th>Qué hizo</th>
+                            <th>Quién lo hizo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -156,13 +151,12 @@ function abrirPerfilCliente(cliente){
                             historial.length > 0
                             ? historial.map(ev => `
                                 <tr>
-                                    <td>${ev.fecha || ""}</td>
-                                    <td>${ev.tipo || ""}</td>
-                                    <td>${ev.detalle || ""}</td>
-                                    <td>${ev.usuario || ""}</td>
+                                    <td>${formatearFecha(ev.fecha)}</td>
+                                    <td>${traducirEvento(ev.tipo)}</td>
+                                    <td>${ev.usuario || "Sistema"}</td>
                                 </tr>
                             `).join("")
-                            : `<tr><td colspan="4">Sin historial registrado.</td></tr>`
+                            : `<tr><td colspan="3">Este cliente aún no tiene historial registrado.</td></tr>`
                         }
                     </tbody>
                 </table>
@@ -173,8 +167,26 @@ function abrirPerfilCliente(cliente){
     document.body.appendChild(modal);
 }
 
-function exportarFichaCliente(){
-    window.print();
+function traducirEvento(tipo){
+    const t = String(tipo || "").toLowerCase();
+
+    if(t.includes("pago")) return "Registró un pago";
+    if(t.includes("cliente_upsert")) return "Creó o actualizó el cliente";
+    if(t.includes("foto")) return "Actualizó fotografía";
+    if(t.includes("delete")) return "Inactivó el cliente";
+    if(t.includes("atencion")) return "Registró atención";
+    if(t.includes("no_atendido")) return "Registró no atendido";
+
+    return tipo || "Evento registrado";
+}
+
+function formatearFecha(fecha){
+    if(!fecha) return "";
+    try{
+        return new Date(fecha).toLocaleString("es-GT");
+    }catch(e){
+        return fecha;
+    }
 }
 
 document.addEventListener("input", e => {
