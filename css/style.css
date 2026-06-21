@@ -798,3 +798,162 @@ tr:hover{
     color:var(--azul);
     font-weight:bold;
 }
+
+.cliente-modal{
+    position:fixed;
+    inset:0;
+    background:rgba(15,23,42,.78);
+    z-index:9999;
+    overflow:auto;
+    padding:35px;
+}
+
+.cliente-perfil{
+    background:white;
+    max-width:1200px;
+    margin:auto;
+    border-radius:24px;
+    padding:35px;
+    position:relative;
+    box-shadow:0 20px 60px rgba(0,0,0,.35);
+}
+
+.cerrar-modal{
+    position:absolute;
+    top:18px;
+    right:22px;
+    border:none;
+    background:var(--naranja);
+    color:white;
+    font-size:28px;
+    width:42px;
+    height:42px;
+    border-radius:50%;
+    cursor:pointer;
+}
+
+.perfil-header{
+    display:flex;
+    justify-content:space-between;
+    gap:20px;
+    align-items:center;
+    border-bottom:1px solid #e5e7eb;
+    padding-bottom:20px;
+    margin-bottom:25px;
+}
+
+.estado{
+    display:inline-block;
+    padding:8px 14px;
+    border-radius:999px;
+    color:white;
+    font-weight:bold;
+}
+
+.estado.activo{
+    background:var(--verde);
+}
+
+.estado.inactivo{
+    background:#64748b;
+}
+
+.perfil-grid{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:30px;
+}
+
+.foto-cliente{
+    width:100%;
+    max-height:280px;
+    object-fit:cover;
+    border-radius:18px;
+    margin-bottom:20px;
+    box-shadow:0 8px 25px rgba(0,0,0,.15);
+}
+
+.perfil-datos,
+.perfil-indicadores,
+.historial-cliente{
+    background:#f8fafc;
+    padding:25px;
+    border-radius:18px;
+}
+
+.perfil-datos p{
+    margin:10px 0;
+}
+
+.perfil-indicadores{
+    display:grid;
+    gap:20px;
+}
+
+.anillo{
+    width:145px;
+    height:145px;
+    border-radius:50%;
+    border:14px solid var(--verde);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    margin:auto;
+    background:white;
+    box-shadow:0 8px 25px rgba(0,0,0,.12);
+}
+
+.anillo span{
+    font-size:28px;
+    font-weight:bold;
+    color:var(--oscuro);
+}
+
+.anillo p{
+    font-size:14px;
+    margin-top:5px;
+}
+
+.historial-cliente{
+    margin-top:30px;
+}
+
+@media print{
+    body *{
+        visibility:hidden;
+    }
+
+    .cliente-modal,
+    .cliente-modal *{
+        visibility:visible;
+    }
+
+    .cliente-modal{
+        position:absolute;
+        inset:0;
+        background:white;
+        padding:0;
+    }
+
+    .cerrar-modal,
+    .perfil-header button{
+        display:none;
+    }
+
+    .cliente-perfil{
+        box-shadow:none;
+        border-radius:0;
+    }
+}
+
+@media(max-width:900px){
+    .perfil-grid{
+        grid-template-columns:1fr;
+    }
+
+    .perfil-header{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+}
