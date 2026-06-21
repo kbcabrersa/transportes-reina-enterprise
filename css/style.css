@@ -1752,3 +1752,13 @@ table{
     width:100% !important;
     height:520px !important;
 }
+
+.acciones-solicitud{
+    margin-top:24px;
+    display:flex;
+    gap:14px;
+    justify-content:flex-end;
+}
+
+.btn-mini.verde{ background:var(--verde); color:white; }
+.btn-mini.rojo{ background:#dc2626; color:white; }

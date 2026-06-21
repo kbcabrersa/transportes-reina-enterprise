@@ -95,6 +95,21 @@
 
 <section id="solicitudes" class="enterprise-section tab-section">
     <h2>Solicitudes de Servicio</h2>
+    <div class="filtros">
+        <select id="filtroSolicitudEstado" oninput="renderSolicitudes()">
+            <option value="">Todos los estados</option>
+            <option value="PENDIENTE">Pendientes</option>
+            <option value="EN_REVISION">En revisión</option>
+            <option value="APROBADA">Aprobadas</option>
+            <option value="RECHAZADA">Rechazadas</option>
+        </select>
+        <select id="filtroSolicitudFecha" oninput="renderSolicitudes()">
+            <option value="">Todas las fechas</option>
+            <option value="hoy">Hoy</option>
+            <option value="semana">Esta semana</option>
+            <option value="mes">Este mes</option>
+        </select>
+    </div>
     <table>
         <thead>
             <tr><th>Fecha</th><th>Nombre</th><th>Barrio</th><th>Tipo</th><th>Estado</th></tr>

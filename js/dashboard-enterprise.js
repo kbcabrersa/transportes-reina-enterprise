@@ -465,3 +465,135 @@ activarTabDesdeHash();
 window.addEventListener("hashchange", activarTabDesdeHash);
 
 cargarDatosEnterprise();
+
+function renderSolicitudes(){
+    const tbody = document.getElementById("tablaSolicitudes");
+    if(!tbody) return;
+
+    const lista = filtrarSolicitudes();
+
+    tbody.innerHTML = lista.length ? lista.map(s=>`
+        <tr onclick='abrirFichaSolicitud(${JSON.stringify(s).replace(/'/g,"&#39;")})'>
+            <td>${formatearFecha(s.fechaSolicitud)}</td>
+            <td>${s.nombreCompleto || ""}</td>
+            <td>${s.barrio || ""}</td>
+            <td>${s.tipoServicio || ""}</td>
+            <td>${s.estado || ""}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="5">Sin solicitudes.</td></tr>`;
+}
+
+function filtrarSolicitudes(){
+    const estado = document.getElementById("filtroSolicitudEstado")?.value || "";
+    const fecha = document.getElementById("filtroSolicitudFecha")?.value || "";
+
+    return solicitudes.filter(s=>{
+        const matchEstado = !estado || String(s.estado||"").toUpperCase() === estado;
+        const d = new Date(s.fechaSolicitud);
+        const hoy = new Date();
+
+        let matchFecha = true;
+
+        if(fecha === "hoy"){
+            matchFecha = d.toDateString() === hoy.toDateString();
+        }
+
+        if(fecha === "semana"){
+            const hace7 = new Date();
+            hace7.setDate(hoy.getDate() - 7);
+            matchFecha = d >= hace7;
+        }
+
+        if(fecha === "mes"){
+            matchFecha = d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear();
+        }
+
+        return matchEstado && matchFecha;
+    });
+}
+
+function abrirFichaSolicitud(s){
+    const foto = s.fotoDriveId
+        ? `https://drive.google.com/thumbnail?sz=w900&id=${s.fotoDriveId}`
+        : "../assets/banners/banner1.png";
+
+    const maps = s.lat && s.lng
+        ? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(s.lng)-0.003},${Number(s.lat)-0.003},${Number(s.lng)+0.003},${Number(s.lat)+0.003}&layer=mapnik&marker=${s.lat},${s.lng}`
+        : "";
+
+    const modal = document.createElement("div");
+    modal.className = "cliente-modal";
+
+    modal.innerHTML = `
+        <div class="cliente-perfil ficha-pro">
+            <button class="cerrar-modal" onclick="this.closest('.cliente-modal').remove()">×</button>
+
+            <div class="ficha-top">
+                <img src="${foto}" class="foto-ficha-pro">
+
+                <div class="ficha-titulo">
+                    <h2>${s.nombreCompleto || "Solicitud sin nombre"}</h2>
+                    <p>Solicitud ID: ${s.idSolicitud || ""}</p>
+                    <span class="estado activo">${s.estado || "PENDIENTE"}</span>
+                </div>
+            </div>
+
+            <div class="ficha-grid-pro">
+                <div class="info-box">
+                    <h3>Datos de la Solicitud</h3>
+                    <p><strong>Fecha:</strong> ${formatearFecha(s.fechaSolicitud)}</p>
+                    <p><strong>Nombre:</strong> ${s.nombreCompleto || ""}</p>
+                    <p><strong>Teléfono:</strong> ${s.telefono || ""}</p>
+                    <p><strong>Correo:</strong> ${s.correo || ""}</p>
+                    <p><strong>Dirección:</strong> ${s.direccion || ""}</p>
+                    <p><strong>Barrio:</strong> ${s.barrio || ""}</p>
+                    <p><strong>Referencia:</strong> ${s.referencia || ""}</p>
+                    <p><strong>Tipo:</strong> ${s.tipoServicio || ""}</p>
+                    <p><strong>Observación:</strong> ${s.observacion || ""}</p>
+                </div>
+
+                <div class="info-box">
+                    <h3>Ubicación</h3>
+                    ${
+                        maps
+                        ? `<iframe src="${maps}" style="width:100%;height:330px;border:0;border-radius:14px;"></iframe>`
+                        : `<p>Sin coordenadas registradas.</p>`
+                    }
+                </div>
+            </div>
+
+            <div class="acciones-solicitud">
+                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','APROBADA')" class="btn-mini verde">Aprobar</button>
+                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','RECHAZADA')" class="btn-mini rojo">Denegar</button>
+                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','EN_REVISION')" class="btn-mini naranja">En revisión</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+async function cambiarEstadoSolicitud(idSolicitud, estado){
+    await fetch(API_URL,{
+        method:"POST",
+        body:JSON.stringify({
+            action:"actualizarSolicitud",
+            idSolicitud,
+            estado,
+            usuarioRevision:"enterprise",
+            observacion:"Actualizado desde Enterprise"
+        })
+    });
+
+    solicitudes = solicitudes.map(s=>{
+        if(String(s.idSolicitud) === String(idSolicitud)){
+            s.estado = estado;
+        }
+        return s;
+    });
+
+    renderSolicitudes();
+    renderKpis();
+
+    document.querySelector(".cliente-modal")?.remove();
+}
