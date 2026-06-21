@@ -9,9 +9,7 @@
 <body class="enterprise-body">
 
 <aside class="enterprise-sidebar">
-    <div class="side-logo">
-        <h2>Transportes<br><span>REINA</span></h2>
-    </div>
+    <div class="side-logo"><h2>Transportes<br><span>REINA</span></h2></div>
 
     <a href="../index.html">Inicio</a>
     <a href="#dashboard">Dashboard</a>
@@ -27,91 +25,84 @@
 
 <main class="enterprise-main">
 
-    <header class="enterprise-topbar">
-        <h1>Enterprise <span>| Transportes Reina Local</span></h1>
+<header class="enterprise-topbar">
+    <h1>Enterprise <span>| Transportes Reina Local</span></h1>
 
-        <div class="top-kpis">
-            <div><strong id="dashClientes">0</strong><span>Clientes Activos</span></div>
-            <div><strong id="dashAtenciones">0</strong><span>Eventos</span></div>
-            <div><strong id="dashCobros">Q0</strong><span>Cobros del Mes</span></div>
-            <div><strong id="dashSolicitudes">0</strong><span>Solicitudes Pendientes</span></div>
+    <div class="top-kpis">
+        <div><strong id="dashClientes">0</strong><span>Clientes Activos</span></div>
+        <div><strong id="dashEventos">0</strong><span>Eventos</span></div>
+        <div><strong id="dashCobros">Q0</strong><span>Cobros del Mes</span></div>
+        <div><strong id="dashSolicitudes">0</strong><span>Solicitudes Pendientes</span></div>
+    </div>
+</header>
+
+<section id="dashboard" class="enterprise-section">
+    <h2>Dashboard Operativo</h2>
+
+    <div class="dashboard-resumen">
+        <div>
+            <h3 id="resumenClientes">Clientes: 0</h3>
+            <p id="resumenMovimiento">Ingresaron: 0 | Se fueron: 0 | Se quedaron: 0</p>
         </div>
-    </header>
-
-    <section id="dashboard" class="enterprise-section">
-        <h2>Dashboard Operativo</h2>
-
-        <div class="impacto-grid">
-            <div class="impacto-card"><h3 id="kpiClientes">0</h3><p>Total Clientes</p></div>
-            <div class="impacto-card"><h3 id="kpiActivos">0</h3><p>Clientes Activos</p></div>
-            <div class="impacto-card"><h3 id="kpiInactivos">0</h3><p>Clientes Inactivos</p></div>
-            <div class="impacto-card"><h3 id="kpiSolicitudes">0</h3><p>Solicitudes Pendientes</p></div>
+        <div>
+            <h3 id="resumenVolumen">Volumen: 0 m³</h3>
+            <p id="resumenPeso">Peso estimado: 0 - 0 kg</p>
         </div>
+    </div>
 
-        <div class="analytics-grid">
-            <div class="analytics-card">
-                <h3>Volumen estimado</h3>
-                <strong id="dashVolumen">0 m³</strong>
-                <p id="dashPeso">0 - 0 kg estimados</p>
-            </div>
+    <div class="charts-grid">
+        <div class="chart-card"><h3>Cobros mes actual vs mes pasado</h3><canvas id="chartCobros"></canvas></div>
+        <div class="chart-card"><h3>Atenciones y no atendidos</h3><canvas id="chartAtenciones"></canvas></div>
+        <div class="chart-card"><h3>Volumen recolectado</h3><canvas id="chartVolumen"></canvas></div>
+        <div class="chart-card"><h3>Incidencias especiales</h3><canvas id="chartIncidencias"></canvas></div>
+        <div class="chart-card grande"><h3>Clientes: ingresaron, salieron y permanecen</h3><canvas id="chartClientes"></canvas></div>
+    </div>
+</section>
 
-            <div class="analytics-card">
-                <h3>Cumplimiento de atención</h3>
-                <strong id="dashCumplimiento">0%</strong>
-                <p id="dashAtendidosNo">0 atendidos / 0 no atendidos</p>
-            </div>
+<section id="clientes" class="enterprise-section">
+    <div class="section-head">
+        <h2>Clientes</h2>
+        <button class="btn-mini naranja">Exportar Informe</button>
+    </div>
 
-            <div class="analytics-card">
-                <h3>Incidencias especiales</h3>
-                <p id="dashIncidencias">Sin incidencias registradas</p>
-            </div>
-        </div>
-    </section>
+    <div class="filtros">
+        <input type="text" id="buscarCliente" placeholder="Buscar cliente, ruta o lugar">
+        <select id="filtroRuta">
+            <option value="">Todas las rutas</option>
+            <option value="Centro">Centro</option>
+            <option value="Ixobel">Ixobel</option>
+            <option value="La Amistad">La Amistad</option>
+        </select>
+        <select id="filtroEstado">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+        </select>
+    </div>
 
-    <section id="clientes" class="enterprise-section">
-        <div class="section-head">
-            <h2>Clientes</h2>
-            <button class="btn-mini naranja">Exportar Informe</button>
-        </div>
+    <table id="tablaClientes">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Ruta</th>
+                <th>Lugar</th>
+                <th>Estado</th>
+                <th>Última Actualización</th>
+            </tr>
+        </thead>
+        <tbody><tr><td colspan="5">Cargando clientes...</td></tr></tbody>
+    </table>
+</section>
 
-        <div class="filtros">
-            <input type="text" id="buscarCliente" placeholder="Buscar cliente, ruta o lugar">
-        </div>
-
-        <table id="tablaClientes">
-            <thead>
-                <tr>
-                    <th>Cliente</th>
-                    <th>Ruta</th>
-                    <th>Lugar</th>
-                    <th>Estado</th>
-                    <th>Última Actualización</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td colspan="5">Cargando clientes...</td></tr>
-            </tbody>
-        </table>
-    </section>
-
-    <section id="solicitudes" class="enterprise-section">
-        <h2>Solicitudes de Servicio</h2>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Nombre</th>
-                    <th>Barrio</th>
-                    <th>Tipo</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody id="tablaSolicitudes">
-                <tr><td colspan="5">Cargando solicitudes...</td></tr>
-            </tbody>
-        </table>
-    </section>
+<section id="solicitudes" class="enterprise-section">
+    <h2>Solicitudes de Servicio</h2>
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>Nombre</th><th>Barrio</th><th>Tipo</th><th>Estado</th></tr>
+        </thead>
+        <tbody id="tablaSolicitudes"><tr><td colspan="5">Cargando solicitudes...</td></tr></tbody>
+    </table>
+</section>
 
 </main>
 
