@@ -70,8 +70,24 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
         const json = await res.json();
 
         if(json.ok){
-            mensaje.textContent = "Solicitud enviada correctamente. ID: " + json.idSolicitud;
-            e.target.reset();
+            document.body.innerHTML = `
+                <main class="solicitud-exito">
+                    <div class="exito-card">
+                        <h1>✅ Solicitud enviada correctamente</h1>
+                        <p>Gracias por confiar en <strong>Transportes Reina Local</strong>.</p>
+                        <p>Su solicitud será revisada por nuestro equipo administrativo.</p>
+                        <p>Nos comunicaremos con usted para confirmar cobertura, condiciones y programación del servicio.</p>
+                        <h3>Número de solicitud</h3>
+                        <p class="codigo-solicitud">${json.idSolicitud}</p>
+                        <p class="redirigiendo">Regresando al sitio principal...</p>
+                    </div>
+                </main>
+            `;
+
+            setTimeout(() => {
+                window.location.href = "../index.html";
+            }, 7000);
+
         }else{
             mensaje.textContent = "Error: " + json.error;
         }

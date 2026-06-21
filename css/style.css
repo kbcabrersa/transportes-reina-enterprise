@@ -709,3 +709,45 @@ tr:hover{
     font-weight:bold;
     color:var(--verde);
 }
+
+.solicitud-exito{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:linear-gradient(135deg,#0F172A,#1B4332);
+    padding:30px;
+    text-align:center;
+}
+
+.exito-card{
+    background:white;
+    max-width:720px;
+    padding:45px;
+    border-radius:24px;
+    box-shadow:0 20px 50px rgba(0,0,0,.25);
+    border-top:8px solid var(--verde);
+}
+
+.exito-card h1{
+    color:var(--verde);
+    margin-bottom:20px;
+}
+
+.exito-card p{
+    font-size:18px;
+    line-height:1.6;
+    margin-bottom:12px;
+}
+
+.codigo-solicitud{
+    font-size:26px;
+    font-weight:bold;
+    color:var(--oscuro);
+}
+
+.redirigiendo{
+    margin-top:20px;
+    color:var(--naranja);
+    font-weight:bold;
+}
