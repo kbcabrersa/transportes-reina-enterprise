@@ -478,3 +478,52 @@ footer{
     margin-bottom:12px;
     line-height:1.6;
 }
+
+/* ANIMACIONES KPI Y TARJETAS */
+
+.impacto-card,
+.card,
+.servicio-item{
+    opacity:0;
+    transform:translateY(25px);
+    animation:fadeUp .8s ease forwards;
+}
+
+.impacto-card:nth-child(1),
+.card:nth-child(1),
+.servicio-item:nth-child(1){ animation-delay:.1s; }
+
+.impacto-card:nth-child(2),
+.card:nth-child(2),
+.servicio-item:nth-child(2){ animation-delay:.2s; }
+
+.impacto-card:nth-child(3),
+.card:nth-child(3),
+.servicio-item:nth-child(3){ animation-delay:.3s; }
+
+.impacto-card:nth-child(4),
+.card:nth-child(4),
+.servicio-item:nth-child(4){ animation-delay:.4s; }
+
+.impacto-card:hover,
+.card:hover,
+.servicio-item:hover{
+    transform:translateY(-8px) scale(1.02);
+    box-shadow:0 15px 35px rgba(0,0,0,.18);
+}
+
+@keyframes fadeUp{
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+.impacto-card h3{
+    transition:.3s;
+}
+
+.impacto-card:hover h3{
+    color:var(--naranja);
+    transform:scale(1.08);
+}
