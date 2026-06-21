@@ -1523,3 +1523,24 @@ body.enterprise-body{
         width:100% !important;
     }
 }
+
+/* CENTRADO FINAL ENTERPRISE */
+.enterprise-section{
+    max-width:1600px !important;
+    margin:0 auto !important;
+    padding:42px 48px !important;
+}
+
+.enterprise-topbar{
+    padding-left:48px !important;
+    padding-right:48px !important;
+}
+
+.charts-grid{
+    grid-template-columns:repeat(auto-fit,minmax(420px,1fr)) !important;
+}
+
+.chart-card.grande{
+    grid-column:1 / -1 !important;
+}
+

@@ -451,3 +451,35 @@ function cerrarGraficaGrande(){
 }
 
 setTimeout(registrarClickGraficas, 1200);
+
+function abrirGraficaGrande(id){
+    const original = document.getElementById(id);
+    const modal = document.getElementById("chartModal");
+    const grande = document.getElementById("chartGrande");
+
+    if(!original || !modal || !grande) return;
+
+    const ctx = grande.getContext("2d");
+    const img = new Image();
+
+    img.onload = function(){
+        grande.width = 1100;
+        grande.height = 520;
+
+        ctx.clearRect(0,0,grande.width,grande.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0,0,grande.width,grande.height);
+        ctx.drawImage(img, 0, 0, grande.width, grande.height);
+
+        modal.classList.add("active");
+    };
+
+    img.src = original.toDataURL("image/png");
+}
+
+function cerrarGraficaGrande(){
+    document.getElementById("chartModal")?.classList.remove("active");
+}
+
+setTimeout(registrarClickGraficas, 1500);
+
