@@ -6,13 +6,27 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19
 }).addTo(mapa);
 
-let marcador = L.marker([16.331, -89.416], {
-    draggable: true
-}).addTo(mapa);
+let marcador = L.marker([16.331, -89.416], { draggable: true }).addTo(mapa);
 
 function actualizarCoordenadas(latlng){
     document.getElementById("lat").value = latlng.lat;
     document.getElementById("lng").value = latlng.lng;
+}
+
+function archivoABase64(file){
+    return new Promise((resolve, reject)=>{
+        if(!file) return resolve("");
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            const base64 = String(reader.result).split(",")[1];
+            resolve(base64);
+        };
+
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
 actualizarCoordenadas(marcador.getLatLng());
@@ -43,6 +57,11 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
     const mensaje = document.getElementById("mensajeSolicitud");
     mensaje.textContent = "Enviando solicitud...";
 
+    const inputFoto = document.querySelector('input[type="file"]');
+    const archivo = inputFoto?.files?.[0];
+
+    const fotoBase64 = await archivoABase64(archivo);
+
     const data = {
         action: "crearSolicitud",
         nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
@@ -54,8 +73,10 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
         referencia: document.getElementById("referencia").value.trim(),
         lat: document.getElementById("lat").value,
         lng: document.getElementById("lng").value,
-        fotoDriveId: "",
-        observacion: document.getElementById("observacion").value.trim()
+        observacion: document.getElementById("observacion").value.trim(),
+        fotoBase64: fotoBase64,
+        fotoNombre: archivo ? archivo.name : "",
+        fotoMime: archivo ? archivo.type : ""
     };
 
     try{
