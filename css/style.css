@@ -581,3 +581,52 @@ td{
 tr:hover{
     background:#f1f8ee;
 }
+
+.modulo-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:25px;
+    padding:40px 50px;
+}
+
+.modulo-card{
+    background:white;
+    padding:28px;
+    border-radius:18px;
+    box-shadow:0 8px 25px rgba(0,0,0,.1);
+    border-left:6px solid var(--verde);
+}
+
+.modulo-card h3{
+    color:var(--oscuro);
+    margin-bottom:12px;
+}
+
+.modulo-card p{
+    line-height:1.5;
+}
+
+.acciones{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:25px;
+}
+
+.btn-mini{
+    padding:10px 16px;
+    border:none;
+    border-radius:10px;
+    background:var(--verde);
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.btn-mini.naranja{
+    background:var(--naranja);
+}
+
+.btn-mini.azul{
+    background:var(--azul);
+}
