@@ -422,3 +422,32 @@ activarTabDesdeHash();
 
 window.addEventListener("hashchange", activarTabDesdeHash);
 cargarDatosEnterprise();
+
+function registrarClickGraficas(){
+    document.querySelectorAll(".chart-card canvas").forEach(canvas=>{
+        canvas.onclick = () => abrirGraficaGrande(canvas.id);
+    });
+}
+
+function abrirGraficaGrande(id){
+    const original = document.getElementById(id);
+    const grande = document.getElementById("chartGrande");
+    const modal = document.getElementById("chartModal");
+
+    if(!original || !grande || !modal) return;
+
+    const ctx = grande.getContext("2d");
+    grande.width = grande.offsetWidth;
+    grande.height = 520;
+
+    ctx.clearRect(0,0,grande.width,grande.height);
+    ctx.drawImage(original,0,0,grande.width,grande.height);
+
+    modal.classList.add("active");
+}
+
+function cerrarGraficaGrande(){
+    document.getElementById("chartModal")?.classList.remove("active");
+}
+
+setTimeout(registrarClickGraficas, 1200);
