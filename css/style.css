@@ -1,0 +1,225 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Segoe UI, Arial, sans-serif;
+}
+
+body{
+    background:#f4f6f9;
+    color:#111827;
+}
+
+header{
+    background:#06142c;
+    color:white;
+    padding:18px 50px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    position:sticky;
+    top:0;
+    z-index:100;
+}
+
+.logo h1{
+    font-size:26px;
+}
+
+.logo p{
+    font-size:14px;
+    color:#9bd36a;
+}
+
+nav a{
+    color:white;
+    text-decoration:none;
+    margin-left:22px;
+    font-weight:600;
+}
+
+nav a:hover{
+    color:#8fd14f;
+}
+
+.hero{
+    position:relative;
+    height:680px;
+    overflow:hidden;
+}
+
+.slider{
+    position:absolute;
+    width:100%;
+    height:100%;
+}
+
+.slide{
+    position:absolute;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    opacity:0;
+    transition:opacity 1s ease-in-out;
+}
+
+.slide.active{
+    opacity:1;
+}
+
+.hero-content{
+    position:relative;
+    z-index:10;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    color:white;
+    background:linear-gradient(
+        rgba(0,0,0,.35),
+        rgba(0,0,0,.55)
+    );
+    padding:20px;
+}
+
+.hero-content h2{
+    font-size:56px;
+    max-width:1000px;
+    margin-bottom:20px;
+}
+
+.hero-content p{
+    font-size:22px;
+    max-width:850px;
+}
+
+.botones{
+    margin-top:35px;
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+.btn{
+    background:#6d4bc3;
+    padding:15px 30px;
+    border-radius:12px;
+    text-decoration:none;
+    color:white;
+    font-weight:bold;
+    transition:.3s;
+}
+
+.btn:hover{
+    transform:translateY(-3px);
+    background:#5435a8;
+}
+
+.btn-verde{
+    background:#6aa52f;
+}
+
+.btn-verde:hover{
+    background:#558a25;
+}
+
+.impacto{
+    background:#0a1830;
+    color:white;
+    padding:80px 40px;
+    text-align:center;
+}
+
+.impacto h2,
+.servicios h2,
+.contacto h2{
+    margin-bottom:40px;
+    font-size:38px;
+}
+
+.impacto-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:25px;
+}
+
+.impacto-card{
+    background:#12264a;
+    border-radius:16px;
+    padding:32px;
+    box-shadow:0 8px 25px rgba(0,0,0,.25);
+}
+
+.impacto-card h3{
+    font-size:44px;
+    color:#69c24a;
+}
+
+.impacto-card p{
+    margin-top:10px;
+    font-size:18px;
+}
+
+.servicios{
+    padding:80px 50px;
+    text-align:center;
+}
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:25px;
+}
+
+.card{
+    background:white;
+    padding:35px;
+    border-radius:18px;
+    box-shadow:0 8px 25px rgba(0,0,0,.1);
+}
+
+.card h3{
+    color:#0a1830;
+    margin-bottom:15px;
+}
+
+.contacto{
+    padding:80px 40px;
+    text-align:center;
+    background:#e9eef5;
+}
+
+footer{
+    background:#06142c;
+    color:white;
+    text-align:center;
+    padding:25px;
+}
+
+@media(max-width:768px){
+    header{
+        flex-direction:column;
+        gap:15px;
+        padding:18px;
+    }
+
+    nav a{
+        margin:8px;
+        display:inline-block;
+    }
+
+    .hero{
+        height:560px;
+    }
+
+    .hero-content h2{
+        font-size:34px;
+    }
+
+    .hero-content p{
+        font-size:18px;
+    }
+}
