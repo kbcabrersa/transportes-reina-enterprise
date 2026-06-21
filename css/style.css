@@ -1078,3 +1078,154 @@ tr:hover{
         grid-template-columns:1fr;
     }
 }
+
+.enterprise-body{
+    display:flex;
+    background:#eef2f7;
+}
+
+.enterprise-sidebar{
+    width:260px;
+    min-height:100vh;
+    background:linear-gradient(180deg,#0F172A,#132238);
+    color:white;
+    position:fixed;
+    left:0;
+    top:0;
+    padding:25px 18px;
+    z-index:50;
+}
+
+.side-logo h2{
+    font-size:22px;
+    line-height:1.1;
+    margin-bottom:35px;
+}
+
+.side-logo span{
+    color:var(--naranja);
+    font-size:34px;
+}
+
+.enterprise-sidebar a{
+    display:block;
+    color:white;
+    text-decoration:none;
+    padding:14px 18px;
+    border-radius:12px;
+    margin-bottom:8px;
+    font-weight:600;
+}
+
+.enterprise-sidebar a:hover,
+.enterprise-sidebar a.activo{
+    background:var(--verde);
+}
+
+.cerrar-sesion{
+    position:absolute;
+    bottom:25px;
+    left:18px;
+    right:18px;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:#dc2626;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.enterprise-main{
+    margin-left:260px;
+    width:calc(100% - 260px);
+}
+
+.enterprise-topbar{
+    height:90px;
+    background:#0F172A;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 35px;
+    border-bottom:3px solid var(--verde);
+}
+
+.enterprise-topbar h1{
+    font-size:22px;
+}
+
+.enterprise-topbar h1 span{
+    color:var(--verde-claro);
+    font-size:15px;
+}
+
+.top-kpis{
+    display:flex;
+    gap:16px;
+}
+
+.top-kpis div{
+    background:#17233a;
+    padding:12px 18px;
+    border-radius:12px;
+    min-width:140px;
+}
+
+.top-kpis strong{
+    display:block;
+    font-size:22px;
+    color:white;
+}
+
+.top-kpis span{
+    font-size:12px;
+    color:#cbd5e1;
+}
+
+.enterprise-section{
+    padding:55px 40px;
+}
+
+.section-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:25px;
+}
+
+.enterprise-section h2{
+    font-size:34px;
+    color:var(--oscuro);
+    margin-bottom:25px;
+}
+
+#tablaClientes tbody tr{
+    cursor:pointer;
+}
+
+#tablaClientes tbody tr:hover{
+    background:#dcfce7;
+}
+
+@media(max-width:1000px){
+    .enterprise-sidebar{
+        position:relative;
+        width:100%;
+        min-height:auto;
+    }
+
+    .enterprise-main{
+        margin-left:0;
+        width:100%;
+    }
+
+    .enterprise-body{
+        display:block;
+    }
+
+    .top-kpis{
+        flex-wrap:wrap;
+    }
+}
