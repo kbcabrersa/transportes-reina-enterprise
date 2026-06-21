@@ -751,3 +751,50 @@ tr:hover{
     color:var(--naranja);
     font-weight:bold;
 }
+
+.login-page{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:linear-gradient(135deg,#0F172A,#1B4332);
+    padding:30px;
+}
+
+.login-card{
+    background:white;
+    width:100%;
+    max-width:420px;
+    padding:40px;
+    border-radius:22px;
+    box-shadow:0 20px 45px rgba(0,0,0,.25);
+    text-align:center;
+}
+
+.login-card h1{
+    color:var(--oscuro);
+    margin-bottom:10px;
+}
+
+.login-card p{
+    margin-bottom:25px;
+}
+
+.login-card form{
+    display:grid;
+    gap:15px;
+}
+
+.login-card input{
+    padding:15px;
+    border:1px solid #cbd5e1;
+    border-radius:12px;
+    font-size:16px;
+}
+
+.login-card a{
+    display:block;
+    margin-top:20px;
+    color:var(--azul);
+    font-weight:bold;
+}
