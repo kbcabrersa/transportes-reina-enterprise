@@ -630,3 +630,82 @@ tr:hover{
 .btn-mini.azul{
     background:var(--azul);
 }
+
+.formulario-servicio{
+    padding:80px 50px;
+    background:var(--claro);
+    max-width:1100px;
+    margin:auto;
+}
+
+.formulario-servicio h2{
+    font-size:38px;
+    color:var(--oscuro);
+    margin-bottom:20px;
+    text-align:center;
+}
+
+.aviso-pago{
+    background:#fff7ed;
+    border-left:6px solid var(--naranja);
+    padding:18px;
+    border-radius:12px;
+    margin-bottom:30px;
+    font-weight:bold;
+}
+
+#formSolicitud{
+    display:grid;
+    gap:18px;
+}
+
+#formSolicitud input,
+#formSolicitud select,
+#formSolicitud textarea{
+    padding:15px;
+    border:1px solid #cbd5e1;
+    border-radius:12px;
+    font-size:16px;
+}
+
+#formSolicitud textarea{
+    min-height:90px;
+}
+
+.label-foto{
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    border:1px dashed #94a3b8;
+}
+
+#mapaSolicitud{
+    height:380px;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 8px 25px rgba(0,0,0,.15);
+}
+
+.terminos-box{
+    background:white;
+    border-radius:16px;
+    padding:22px;
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+}
+
+.terminos-box a{
+    display:inline-block;
+    margin:12px 0;
+    color:var(--azul);
+    font-weight:bold;
+}
+
+.terminos-box label{
+    display:block;
+    margin-top:10px;
+}
+
+#mensajeSolicitud{
+    font-weight:bold;
+    color:var(--verde);
+}

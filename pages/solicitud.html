@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitud de Servicio | Transportes Reina</title>
+
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+</head>
+
+<body>
+
+<header>
+    <div class="logo">
+        <h1>Solicitud de Servicio</h1>
+        <p>Transportes Reina Local</p>
+    </div>
+
+    <nav>
+        <a href="../index.html">Inicio</a>
+        <a href="dashboard-enterprise.html">Enterprise</a>
+    </nav>
+</header>
+
+<section class="formulario-servicio">
+
+    <h2>Solicitar Servicio de Recolección</h2>
+
+    <p class="aviso-pago">
+        El servicio trabaja bajo modalidad de pago anticipado.
+        La solicitud será revisada antes de activar el servicio.
+    </p>
+
+    <form id="formSolicitud">
+
+        <input type="text" id="nombreCompleto" placeholder="Nombre completo" required>
+        <input type="tel" id="telefono" placeholder="Número de teléfono / WhatsApp" required>
+        <input type="email" id="correo" placeholder="Correo electrónico opcional">
+
+        <select id="tipoServicio" required>
+            <option value="">Tipo de servicio</option>
+            <option value="Residencial">Residencial</option>
+            <option value="Comercial">Comercial</option>
+            <option value="Institucional">Institucional</option>
+            <option value="Industrial">Industrial</option>
+        </select>
+
+        <input type="text" id="barrio" placeholder="Barrio o comunidad" required>
+        <textarea id="direccion" placeholder="Dirección exacta" required></textarea>
+        <textarea id="referencia" placeholder="Punto de referencia" required></textarea>
+
+        <label class="label-foto">
+            Imagen de referencia del inmueble
+            <input type="file" id="foto" accept="image/*">
+        </label>
+
+        <h3>Ubicación del servicio</h3>
+        <p>Mueve el marcador o usa tu ubicación actual.</p>
+
+        <button type="button" class="btn-mini azul" id="btnUbicacion">
+            Usar mi ubicación
+        </button>
+
+        <div id="mapaSolicitud"></div>
+
+        <input type="hidden" id="lat">
+        <input type="hidden" id="lng">
+
+        <textarea id="observacion" placeholder="Observaciones adicionales"></textarea>
+
+        <div class="terminos-box">
+            <p>
+                Antes de enviar la solicitud debe leer los términos y condiciones.
+            </p>
+
+            <a href="../assets/docs/Terminos_Privacidad_Solicitud_Transportes_Reina.pdf" target="_blank">
+                Leer términos y condiciones
+            </a>
+
+            <label>
+                <input type="checkbox" id="aceptaTerminos" required>
+                He leído y acepto los términos y condiciones.
+            </label>
+
+            <label>
+                <input type="checkbox" id="aceptaPago" required>
+                Entiendo que el servicio requiere pago anticipado.
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-verde">
+            Enviar Solicitud
+        </button>
+
+        <p id="mensajeSolicitud"></p>
+
+    </form>
+
+</section>
+
+<footer>
+    <p>© 2026 Transportes Reina Local</p>
+</footer>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="../js/solicitud.js"></script>
+
+</body>
+</html>
