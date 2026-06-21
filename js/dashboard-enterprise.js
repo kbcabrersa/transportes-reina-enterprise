@@ -374,4 +374,51 @@ function traducirEvento(tipo){
 
     return tipo || "Evento";
 }
+function activarTabs(){
+    document.querySelectorAll(".tab-link").forEach(link=>{
+        link.addEventListener("click", e=>{
+            e.preventDefault();
+
+            const tab = link.dataset.tab;
+
+            document.querySelectorAll(".tab-link")
+                .forEach(a=>a.classList.remove("activo"));
+
+            document.querySelectorAll(".tab-section")
+                .forEach(s=>s.classList.remove("active"));
+
+            link.classList.add("activo");
+
+            const section = document.getElementById(tab);
+            if(section){
+                section.classList.add("active");
+            }
+
+            window.location.hash = tab;
+        });
+    });
+}
+
+function activarTabDesdeHash(){
+    const hash = window.location.hash.replace("#", "") || "dashboard";
+
+    document.querySelectorAll(".tab-link")
+        .forEach(a=>a.classList.remove("activo"));
+
+    document.querySelectorAll(".tab-section")
+        .forEach(s=>s.classList.remove("active"));
+
+    const link = document.querySelector('.tab-link[data-tab="' + hash + '"]');
+    const section = document.getElementById(hash);
+
+    if(link && section){
+        link.classList.add("activo");
+        section.classList.add("active");
+    }
+}
+
+activarTabs();
+activarTabDesdeHash();
+
+window.addEventListener("hashchange", activarTabDesdeHash);
 cargarDatosEnterprise();
