@@ -6,173 +6,96 @@
 <title>Enterprise | Transportes Reina Local</title>
 <link rel="stylesheet" href="../css/style.css">
 </head>
-<body>
+<body class="enterprise-body">
 
-<header>
-    <div class="logo">
-        <h1>Enterprise</h1>
-        <p>Panel interno Transportes Reina</p>
+<aside class="enterprise-sidebar">
+    <div class="side-logo">
+        <h2>Transportes<br><span>REINA</span></h2>
     </div>
 
-    <nav>
-        <a href="../index.html">Inicio</a>
-        <a href="#dashboard">Dashboard</a>
-        <a href="#clientes">Clientes</a>
-        <a href="#solicitudes">Solicitudes</a>
-    </nav>
-</header>
+    <a href="../index.html">Inicio</a>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#clientes" class="activo">Clientes</a>
+    <a href="#solicitudes">Solicitudes</a>
+    <a href="#cobros">Cobros</a>
+    <a href="#operativo">Operativo</a>
+    <a href="#informes">Informes</a>
+    <a href="#archivo">Archivo de Oficina</a>
 
-<section class="enterprise" id="dashboard">
-    <h2>Dashboard Operativo</h2>
+    <button onclick="cerrarSesion()" class="cerrar-sesion">Cerrar Sesión</button>
+</aside>
 
-    <div class="impacto-grid">
-        <div class="impacto-card"><h3 id="dashClientes" id="dashSolicitudes">0</h3><p>Clientes Activos</p></div>
-        <div class="impacto-card"><h3 id="dashPuntos">0</h3><p>Puntos Visibles</p></div>
-        <div class="impacto-card"><h3 id="dashAtenciones">0</h3><p>Atenciones Diarias</p></div>
-        <div class="impacto-card"><h3>0</h3><p>Solicitudes Pendientes</p></div>
-    </div>
-</section>
+<main class="enterprise-main">
 
-<section class="enterprise-tabla" id="clientes">
+    <header class="enterprise-topbar">
+        <h1>Enterprise <span>| Transportes Reina Local</span></h1>
 
-    <h2>Clientes</h2>
+        <div class="top-kpis">
+            <div><strong id="dashClientes">0</strong><span>Clientes Activos</span></div>
+            <div><strong id="dashAtenciones">0</strong><span>Eventos</span></div>
+            <div><strong id="dashCobros">Q0</strong><span>Cobros del Mes</span></div>
+            <div><strong id="dashSolicitudes">0</strong><span>Solicitudes Pendientes</span></div>
+        </div>
+    </header>
 
-    <div class="impacto-grid">
-        <div class="impacto-card">
-            <h3 id="kpiClientes">0</h3>
-            <p>Total Clientes</p>
+    <section id="dashboard" class="enterprise-section">
+        <h2>Dashboard Operativo</h2>
+
+        <div class="impacto-grid">
+            <div class="impacto-card"><h3 id="kpiClientes">0</h3><p>Total Clientes</p></div>
+            <div class="impacto-card"><h3 id="kpiActivos">0</h3><p>Clientes Activos</p></div>
+            <div class="impacto-card"><h3 id="kpiInactivos">0</h3><p>Clientes Inactivos</p></div>
+            <div class="impacto-card"><h3 id="kpiSolicitudes">0</h3><p>Solicitudes Pendientes</p></div>
+        </div>
+    </section>
+
+    <section id="clientes" class="enterprise-section">
+        <div class="section-head">
+            <h2>Clientes</h2>
+            <button class="btn-mini naranja">Exportar Informe</button>
         </div>
 
-        <div class="impacto-card">
-            <h3 id="kpiActivos">0</h3>
-            <p>Clientes Activos</p>
+        <div class="filtros">
+            <input type="text" id="buscarCliente" placeholder="Buscar cliente, ruta o lugar">
         </div>
 
-        <div class="impacto-card">
-            <h3 id="kpiInactivos">0</h3>
-            <p>Clientes Inactivos</p>
-        </div>
+        <table id="tablaClientes">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Ruta</th>
+                    <th>Lugar</th>
+                    <th>Estado</th>
+                    <th>Última Actualización</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="5">Cargando clientes...</td></tr>
+            </tbody>
+        </table>
+    </section>
 
-        <div class="impacto-card">
-            <h3>PDF</h3>
-            <p>Ficha Exportable</p>
-        </div>
-    </div>
+    <section id="solicitudes" class="enterprise-section">
+        <h2>Solicitudes de Servicio</h2>
 
-    <div class="filtros">
-        <input
-            type="text"
-            id="buscarCliente"
-            placeholder="Buscar cliente">
-    </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Nombre</th>
+                    <th>Barrio</th>
+                    <th>Tipo</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="tablaSolicitudes">
+                <tr><td colspan="5">Cargando solicitudes...</td></tr>
+            </tbody>
+        </table>
+    </section>
 
-    <table id="tablaClientes">
-        <thead>
-            <tr>
-                <th>Cliente</th>
-                <th>Ruta</th>
-                <th>Lugar</th>
-                <th>Estado</th>
-                <th>Última Actualización</th>
-            </tr>
-        </thead>
+</main>
 
-        <tbody>
-            <tr>
-                <td colspan="5">Cargando clientes...</td>
-            </tr>
-        </tbody>
-    </table>
-
-</section>
-
-    <div class="filtros">
-        <input type="text" placeholder="Buscar cliente">
-        <select>
-            <option>Ruta</option>
-            <option>Centro</option>
-            <option>Ixobel</option>
-            <option>La Amistad</option>
-        </select>
-        <select>
-            <option>Estado</option>
-            <option>Activo</option>
-            <option>Inactivo</option>
-            <option>Pendiente</option>
-        </select>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Cliente</th>
-                <th>Ruta</th>
-                <th>Lugar</th>
-                <th>Estado</th>
-                <th>Última Atención</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Cliente de prueba</td>
-                <td>Centro</td>
-                <td>Barrio El Centro</td>
-                <td>Activo</td>
-                <td>Hoy</td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-
-<section class="enterprise-tabla" id="solicitudes">
-    <h2>Solicitudes de Servicio</h2>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Nombre</th>
-                <th>Barrio</th>
-                <th>Tipo</th>
-                <th>Estado</th>
-                <th>Acción</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>--</td>
-                <td>Sin solicitudes</td>
-                <td>--</td>
-                <td>--</td>
-                <td>Pendiente</td>
-                <td>Revisar</td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-
-<section class="enterprise-tabla" id="modulos">
-    <h2>Módulos Enterprise</h2>
-    <div class="modulo-grid">
-        <div class="modulo-card"><h3>Cobros</h3><p>Control de pagos, recibos, pendientes y resumen mensual.</p></div>
-        <div class="modulo-card"><h3>Operativo</h3><p>Atenciones, no atendidos, rutas, estados diarios y seguimiento.</p></div>
-        <div class="modulo-card"><h3>Historiales</h3><p>Historial por cliente, pagos, servicios, incidencias y observaciones.</p></div>
-        <div class="modulo-card"><h3>Reportes PDF</h3><p>Generación de informes, fichas de cliente, resúmenes y documentos administrativos.</p></div>
-        <div class="modulo-card"><h3>Gráficos</h3><p>Indicadores de clientes, cobros, atenciones, rutas y rendimiento operativo.</p></div>
-        <div class="modulo-card"><h3>Administrativo</h3><p>Control de bajas, cancelaciones, justificaciones, auditoría y usuarios.</p></div>
-    </div>
-    <div class="acciones">
-        <button class="btn-mini">Generar Resumen</button>
-        <button class="btn-mini azul">Ficha Cliente</button>
-        <button class="btn-mini naranja">Exportar PDF</button>
-    </div>
-</section>
-
-<footer>
-    <p>© 2026 Transportes Reina Local</p>
-</footer>
-
-<script src="../js/dashboard-enterprise.js"></script>
 <script src="../js/dashboard-enterprise.js"></script>
 </body>
 </html>
