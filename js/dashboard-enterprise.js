@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwIHxWkHnag7wNw-NXE3EjiQsTH53myIATcGhuRSHrLWoHVb6Ium8ouVcYGmAizSLs-lg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwzXP5TDQrNA9rWbDXawXR2L9smjJXj_mpPz6jHRanyFZ-1SevdsYGuKEGANKpYU5mhRg/exec";
 
 if(localStorage.getItem("enterpriseAuth") !== "true"){
     window.location.href = "login-enterprise.html";
