@@ -296,3 +296,58 @@ footer{
     background:var(--verde);
     transform:translateY(-5px);
 }
+
+/* Ajuste profesional del banner principal */
+.hero{
+    height:520px;
+}
+
+.hero-content{
+    align-items:flex-start;
+    text-align:left;
+    padding-left:85px;
+    padding-right:40px;
+    background:linear-gradient(
+        90deg,
+        rgba(15,23,42,.88) 0%,
+        rgba(15,23,42,.60) 35%,
+        rgba(15,23,42,.15) 70%,
+        rgba(15,23,42,.05) 100%
+    );
+}
+
+.hero-content h2{
+    font-size:46px;
+    max-width:580px;
+    line-height:1.1;
+}
+
+.hero-content h2::first-line{
+    color:white;
+}
+
+.hero-content p{
+    font-size:20px;
+    max-width:520px;
+}
+
+.botones{
+    justify-content:flex-start;
+}
+
+@media(max-width:768px){
+    .hero{
+        height:560px;
+    }
+
+    .hero-content{
+        align-items:center;
+        text-align:center;
+        padding:25px;
+        background:rgba(15,23,42,.65);
+    }
+
+    .botones{
+        justify-content:center;
+    }
+}
