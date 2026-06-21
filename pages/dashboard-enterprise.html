@@ -34,7 +34,57 @@
 </section>
 
 <section class="enterprise-tabla" id="clientes">
+
     <h2>Clientes</h2>
+
+    <div class="impacto-grid">
+        <div class="impacto-card">
+            <h3 id="kpiClientes">0</h3>
+            <p>Total Clientes</p>
+        </div>
+
+        <div class="impacto-card">
+            <h3 id="kpiActivos">0</h3>
+            <p>Clientes Activos</p>
+        </div>
+
+        <div class="impacto-card">
+            <h3 id="kpiInactivos">0</h3>
+            <p>Clientes Inactivos</p>
+        </div>
+
+        <div class="impacto-card">
+            <h3>PDF</h3>
+            <p>Ficha Exportable</p>
+        </div>
+    </div>
+
+    <div class="filtros">
+        <input
+            type="text"
+            id="buscarCliente"
+            placeholder="Buscar cliente">
+    </div>
+
+    <table id="tablaClientes">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Ruta</th>
+                <th>Lugar</th>
+                <th>Estado</th>
+                <th>Última Actualización</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+                <td colspan="5">Cargando clientes...</td>
+            </tr>
+        </tbody>
+    </table>
+
+</section>
 
     <div class="filtros">
         <input type="text" placeholder="Buscar cliente">
