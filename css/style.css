@@ -957,3 +957,124 @@ tr:hover{
         align-items:flex-start;
     }
 }
+
+.ficha-pro{
+    max-width:1180px;
+    padding:34px;
+}
+
+.ficha-top{
+    display:grid;
+    grid-template-columns:360px 1fr auto;
+    gap:28px;
+    align-items:start;
+    border-bottom:1px solid #e5e7eb;
+    padding-bottom:24px;
+    margin-bottom:22px;
+}
+
+.foto-ficha-pro{
+    width:100%;
+    height:230px;
+    object-fit:cover;
+    border-radius:16px;
+    box-shadow:0 8px 25px rgba(0,0,0,.18);
+}
+
+.ficha-titulo h2{
+    font-size:30px;
+    color:var(--oscuro);
+}
+
+.resumen-cliente{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+    margin-bottom:24px;
+}
+
+.resumen-cliente div{
+    background:white;
+    border:1px solid #e5e7eb;
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 8px 18px rgba(0,0,0,.06);
+}
+
+.resumen-cliente span{
+    display:block;
+    font-size:13px;
+    color:#64748b;
+    margin-bottom:6px;
+}
+
+.resumen-cliente strong{
+    color:var(--oscuro);
+    font-size:17px;
+}
+
+.ficha-grid-pro{
+    display:grid;
+    grid-template-columns:1fr 1.25fr;
+    gap:26px;
+}
+
+.info-box,
+.indicadores-pro{
+    background:#f8fafc;
+    border-radius:18px;
+    padding:24px;
+}
+
+.info-box p{
+    margin:11px 0;
+}
+
+.indicadores-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+    margin-top:20px;
+}
+
+.anillo-pro{
+    width:145px;
+    height:145px;
+    border-radius:50%;
+    background:white;
+    margin:auto;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    box-shadow:0 8px 25px rgba(0,0,0,.12);
+    text-align:center;
+    padding:12px;
+}
+
+.anillo-pro.verde{ border:14px solid var(--verde); }
+.anillo-pro.azul{ border:14px solid var(--azul); }
+.anillo-pro.morado{ border:14px solid #6d28d9; }
+
+.anillo-pro span{
+    font-size:29px;
+    font-weight:bold;
+    color:var(--oscuro);
+}
+
+.anillo-pro small{
+    font-size:12px;
+    font-weight:bold;
+}
+
+@media(max-width:1000px){
+    .ficha-top,
+    .ficha-grid-pro,
+    .resumen-cliente{
+        grid-template-columns:1fr;
+    }
+
+    .indicadores-row{
+        grid-template-columns:1fr;
+    }
+}
