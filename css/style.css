@@ -1,3 +1,14 @@
+:root{
+    --verde:#43A047;
+    --verde-claro:#8BC34A;
+    --azul:#1565C0;
+    --oscuro:#0F172A;
+    --naranja:#FB8C00;
+    --claro:#F8FAFC;
+    --gris:#E8EDF2;
+    --texto:#1F2937;
+}
+
 *{
     margin:0;
     padding:0;
@@ -6,12 +17,12 @@
 }
 
 body{
-    background:#f4f6f9;
-    color:#111827;
+    background:var(--claro);
+    color:var(--texto);
 }
 
 header{
-    background:#06142c;
+    background:rgba(15,23,42,.96);
     color:white;
     padding:18px 50px;
     display:flex;
@@ -20,6 +31,7 @@ header{
     position:sticky;
     top:0;
     z-index:100;
+    border-bottom:3px solid var(--verde);
 }
 
 .logo h1{
@@ -28,7 +40,7 @@ header{
 
 .logo p{
     font-size:14px;
-    color:#9bd36a;
+    color:var(--verde-claro);
 }
 
 nav a{
@@ -39,7 +51,7 @@ nav a{
 }
 
 nav a:hover{
-    color:#8fd14f;
+    color:var(--verde-claro);
 }
 
 .hero{
@@ -78,8 +90,8 @@ nav a:hover{
     text-align:center;
     color:white;
     background:linear-gradient(
-        rgba(0,0,0,.35),
-        rgba(0,0,0,.55)
+        rgba(15,23,42,.25),
+        rgba(15,23,42,.65)
     );
     padding:20px;
 }
@@ -88,11 +100,13 @@ nav a:hover{
     font-size:56px;
     max-width:1000px;
     margin-bottom:20px;
+    text-shadow:0 4px 18px rgba(0,0,0,.6);
 }
 
 .hero-content p{
     font-size:22px;
     max-width:850px;
+    text-shadow:0 3px 12px rgba(0,0,0,.6);
 }
 
 .botones{
@@ -104,31 +118,32 @@ nav a:hover{
 }
 
 .btn{
-    background:#6d4bc3;
+    background:var(--verde);
     padding:15px 30px;
     border-radius:12px;
     text-decoration:none;
     color:white;
     font-weight:bold;
     transition:.3s;
+    box-shadow:0 8px 20px rgba(0,0,0,.25);
 }
 
 .btn:hover{
     transform:translateY(-3px);
-    background:#5435a8;
+    background:var(--azul);
 }
 
 .btn-verde{
-    background:#6aa52f;
+    background:var(--naranja);
 }
 
 .btn-verde:hover{
-    background:#558a25;
+    background:#e07800;
 }
 
 .impacto{
-    background:#0a1830;
-    color:white;
+    background:white;
+    color:var(--texto);
     padding:80px 40px;
     text-align:center;
 }
@@ -138,6 +153,7 @@ nav a:hover{
 .contacto h2{
     margin-bottom:40px;
     font-size:38px;
+    color:var(--oscuro);
 }
 
 .impacto-grid{
@@ -147,15 +163,16 @@ nav a:hover{
 }
 
 .impacto-card{
-    background:#12264a;
+    background:white;
     border-radius:16px;
     padding:32px;
-    box-shadow:0 8px 25px rgba(0,0,0,.25);
+    box-shadow:0 8px 25px rgba(0,0,0,.12);
+    border-top:6px solid var(--verde);
 }
 
 .impacto-card h3{
     font-size:44px;
-    color:#69c24a;
+    color:var(--verde);
 }
 
 .impacto-card p{
@@ -166,6 +183,7 @@ nav a:hover{
 .servicios{
     padding:80px 50px;
     text-align:center;
+    background:var(--gris);
 }
 
 .cards{
@@ -179,24 +197,32 @@ nav a:hover{
     padding:35px;
     border-radius:18px;
     box-shadow:0 8px 25px rgba(0,0,0,.1);
+    border-left:6px solid var(--verde);
 }
 
 .card h3{
-    color:#0a1830;
+    color:var(--oscuro);
     margin-bottom:15px;
+}
+
+.card:hover{
+    transform:translateY(-4px);
+    transition:.3s;
+    border-left-color:var(--naranja);
 }
 
 .contacto{
     padding:80px 40px;
     text-align:center;
-    background:#e9eef5;
+    background:white;
 }
 
 footer{
-    background:#06142c;
+    background:var(--oscuro);
     color:white;
     text-align:center;
     padding:25px;
+    border-top:3px solid var(--verde);
 }
 
 @media(max-width:768px){
