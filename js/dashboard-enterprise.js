@@ -166,7 +166,107 @@ document.addEventListener("input", e=>{
 });
 
 function abrirPerfilCliente(cliente){
-    alert("Ficha de cliente activa: " + cliente.nombre);
+    const historial = eventos.filter(ev =>
+        String(ev.clienteId || "") === String(cliente.id || "") ||
+        String(ev.clienteNombre || "").toLowerCase() === String(cliente.nombre || "").toLowerCase()
+    );
+
+    const foto = cliente.fotoDriveId
+        ? `https://drive.google.com/thumbnail?sz=w900&id=${cliente.fotoDriveId}`
+        : "../assets/banners/banner1.png";
+
+    const modal = document.createElement("div");
+    modal.className = "cliente-modal";
+
+    modal.innerHTML = `
+        <div class="cliente-perfil ficha-pro">
+            <button class="cerrar-modal" onclick="this.closest('.cliente-modal').remove()">×</button>
+
+            <div class="ficha-top">
+                <img src="${foto}" class="foto-ficha-pro">
+
+                <div class="ficha-titulo">
+                    <h2>${cliente.nombre || "Cliente sin nombre"}</h2>
+                    <p>Cliente ID: ${cliente.id || ""}</p>
+                    <span class="estado ${activo(cliente) ? "activo" : "inactivo"}">
+                        ${activo(cliente) ? "Activo" : "Inactivo"}
+                    </span>
+                </div>
+
+                <button class="btn-mini naranja" onclick="window.print()">Exportar Ficha PDF</button>
+            </div>
+
+            <div class="resumen-cliente">
+                <div><span>Cliente desde</span><strong>${fechaCorta(cliente.updatedAt)}</strong></div>
+                <div><span>Último pago</span><strong>${ultimoEvento(historial, "pago")}</strong></div>
+                <div><span>Última atención</span><strong>${ultimoEvento(historial, "atencion")}</strong></div>
+                <div><span>Servicio</span><strong>${cliente.tipoServicio || "Básico"} - Q${cliente.precio || "0"}</strong></div>
+            </div>
+
+            <div class="ficha-grid-pro">
+                <div class="info-box">
+                    <h3>Información del Cliente</h3>
+                    <p><strong>Nombre:</strong> ${cliente.nombre || ""}</p>
+                    <p><strong>Teléfono:</strong> ${cliente.telefono || ""}</p>
+                    <p><strong>Ruta:</strong> ${cliente.ruta || ""}</p>
+                    <p><strong>Lugar:</strong> ${cliente.lugar || ""}</p>
+                    <p><strong>Día de Pago:</strong> ${cliente.diaPago || ""}</p>
+                    <p><strong>Tipo de Servicio:</strong> ${cliente.tipoServicio || ""}</p>
+                    <p><strong>Precio:</strong> Q${cliente.precio || "0"}</p>
+                    <p><strong>Ubicación:</strong> ${cliente.lat || ""}, ${cliente.lng || ""}</p>
+                </div>
+
+                <div class="indicadores-pro">
+                    <h3>Indicadores de Desempeño</h3>
+
+                    <div class="indicadores-row">
+                        <div class="anillo-pro verde">
+                            <span>92%</span>
+                            <small>Cumplimiento de Pago</small>
+                        </div>
+
+                        <div class="anillo-pro azul">
+                            <span>90%</span>
+                            <small>Cumplimiento de Servicio</small>
+                        </div>
+
+                        <div class="anillo-pro morado">
+                            <span>85%</span>
+                            <small>Puntualidad de Pago</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="historial-cliente">
+                <h3>Historial de Eventos</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha y Hora</th>
+                            <th>Qué hizo</th>
+                            <th>Quién lo hizo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${
+                            historial.length
+                            ? historial.slice(-8).reverse().map(ev => `
+                                <tr>
+                                    <td>${formatearFecha(ev.fecha)}</td>
+                                    <td>${traducirEvento(ev.tipo)}</td>
+                                    <td>${ev.usuario || "Sistema"}</td>
+                                </tr>
+                            `).join("")
+                            : `<tr><td colspan="3">Este cliente aún no tiene historial registrado.</td></tr>`
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
 }
 
 function sumarVolumen(lista){
@@ -251,4 +351,27 @@ function mismoMes(f,m,a){ if(!f)return false; const d=new Date(f); return d.getM
 function setText(id,v){ const el=document.getElementById(id); if(el)el.textContent=v; }
 function formatearFecha(f){ return f ? new Date(f).toLocaleString("es-GT") : ""; }
 
+function ultimoEvento(historial, tipo){
+    const ev = historial
+        .filter(e => String(e.tipo || "").toLowerCase().includes(tipo))
+        .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+
+    return ev ? fechaCorta(ev.fecha) : "Sin registro";
+}
+
+function fechaCorta(fecha){
+    if(!fecha) return "Sin registro";
+    return new Date(fecha).toLocaleDateString("es-GT");
+}
+
+function traducirEvento(tipo){
+    const t = String(tipo || "").toLowerCase();
+
+    if(t.includes("pago")) return "Registró un pago";
+    if(t.includes("cliente")) return "Actualizó cliente";
+    if(t.includes("atencion")) return "Atención realizada";
+    if(t.includes("no_atendido")) return "Cliente no atendido";
+
+    return tipo || "Evento";
+}
 cargarDatosEnterprise();
