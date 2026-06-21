@@ -603,3 +603,133 @@ function cambiarPaginaClientes(dir){
 
     renderClientesPaginados(clientesFiltradosActuales);
 }
+
+/* FIX ROBUSTO ENTERPRISE */
+
+async function getApi(action){
+    try{
+        const r = await fetch(API_URL + "?action=" + action);
+        const j = await r.json();
+        return j;
+    }catch(e){
+        console.warn("Error API:", action, e);
+        return [];
+    }
+}
+
+async function cargarDatosEnterprise(){
+    const c = await getApi("clientes");
+    const e = await getApi("eventos");
+    const s = await getApi("listarSolicitudes");
+    const a = await getApi("atenciones");
+    const n = await getApi("noAtendidos");
+
+    clientes = Array.isArray(c) ? c : [];
+    eventos = Array.isArray(e) ? e : [];
+    solicitudes = s.solicitudes || [];
+    atenciones = Array.isArray(a) ? a : [];
+    noAtendidos = Array.isArray(n) ? n : [];
+
+    renderKpis();
+    renderDashboard();
+    renderClientesPaginados ? renderClientesPaginados(clientes) : renderClientes(clientes);
+    renderSolicitudes();
+    setTimeout(registrarClickGraficas, 300);
+}
+
+let datosGraficas = {};
+
+function barras(id, labels, valores){
+    datosGraficas[id] = {tipo:"barras", labels, valores};
+    dibujarBarras(document.getElementById(id), labels, valores);
+}
+
+function lineas(id, labels, valores){
+    datosGraficas[id] = {tipo:"lineas", labels, valores};
+    dibujarLineas(document.getElementById(id), labels, valores);
+}
+
+function abrirGraficaGrande(id){
+    const modal = document.getElementById("chartModal");
+    const canvas = document.getElementById("chartGrande");
+    const data = datosGraficas[id];
+
+    if(!modal || !canvas || !data) return;
+
+    modal.classList.add("active");
+
+    setTimeout(()=>{
+        if(data.tipo === "barras") dibujarBarras(canvas, data.labels, data.valores, 520);
+        if(data.tipo === "lineas") dibujarLineas(canvas, data.labels, data.valores, 520);
+    },100);
+}
+
+function dibujarBarras(c, labels, valores, alto=280){
+    if(!c) return;
+    const ctx = c.getContext("2d");
+    c.width = c.offsetWidth || 900;
+    c.height = alto;
+
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,c.width,c.height);
+
+    const max = Math.max(...valores,1);
+    const margen = 55;
+    const anchoGrupo = (c.width - margen*2) / valores.length;
+    const barW = anchoGrupo * .55;
+
+    ctx.fillStyle = "#43A047";
+    ctx.font = "14px Arial";
+
+    valores.forEach((v,i)=>{
+        const x = margen + i*anchoGrupo + anchoGrupo*.2;
+        const h = (c.height-100) * (v/max);
+        const y = c.height-60-h;
+
+        ctx.fillRect(x,y,barW,h);
+        ctx.fillText(v,x,y-8);
+        ctx.fillText(labels[i],x,c.height-25);
+    });
+}
+
+function dibujarLineas(c, labels, valores, alto=280){
+    if(!c) return;
+    const ctx = c.getContext("2d");
+    c.width = c.offsetWidth || 900;
+    c.height = alto;
+
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,c.width,c.height);
+
+    const max = Math.max(...valores,1);
+    const margen = 70;
+
+    ctx.strokeStyle = "#43A047";
+    ctx.fillStyle = "#43A047";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+
+    valores.forEach((v,i)=>{
+        const x = margen + i*((c.width-margen*2)/(valores.length-1 || 1));
+        const y = c.height-60 - ((c.height-120)*(v/max));
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        ctx.fillText(v.toFixed(2),x-10,y-12);
+        ctx.fillText(labels[i],x-35,c.height-25);
+    });
+
+    ctx.stroke();
+}
+
+function cerrarGraficaGrande(){
+    document.getElementById("chartModal")?.classList.remove("active");
+}
+
+function registrarClickGraficas(){
+    document.querySelectorAll(".chart-card canvas").forEach(c=>{
+        c.onclick = ()=>abrirGraficaGrande(c.id);
+    });
+}
+
+cargarDatosEnterprise();

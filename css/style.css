@@ -1718,3 +1718,37 @@ table{
         overflow:hidden !important;
     }
 }
+
+/* ENTERPRISE ADAPTATIVO SIN ZOOM */
+.enterprise-sidebar{
+    width:190px !important;
+}
+
+.enterprise-main{
+    margin-left:190px !important;
+    width:calc(100vw - 190px) !important;
+}
+
+.enterprise-section{
+    max-width:1450px !important;
+    margin:0 auto !important;
+    padding:38px 36px !important;
+}
+
+.charts-grid{
+    grid-template-columns:repeat(auto-fit,minmax(360px,1fr)) !important;
+}
+
+.chart-card canvas{
+    width:100% !important;
+    height:280px !important;
+}
+
+.chart-modal-card{
+    width:min(1000px,92vw) !important;
+}
+
+#chartGrande{
+    width:100% !important;
+    height:520px !important;
+}
