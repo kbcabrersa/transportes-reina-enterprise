@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise | Transportes Reina Local</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <h1>Enterprise</h1>
+        <p>Panel interno Transportes Reina</p>
+    </div>
+
+    <nav>
+        <a href="../index.html">Inicio</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#clientes">Clientes</a>
+        <a href="#solicitudes">Solicitudes</a>
+    </nav>
+</header>
+
+<section class="enterprise" id="dashboard">
+    <h2>Dashboard Operativo</h2>
+
+    <div class="impacto-grid">
+        <div class="impacto-card"><h3>500+</h3><p>Clientes Activos</p></div>
+        <div class="impacto-card"><h3>95</h3><p>Puntos Visibles</p></div>
+        <div class="impacto-card"><h3>90-150</h3><p>Atenciones Diarias</p></div>
+        <div class="impacto-card"><h3>0</h3><p>Solicitudes Pendientes</p></div>
+    </div>
+</section>
+
+<section class="enterprise-tabla" id="clientes">
+    <h2>Clientes</h2>
+
+    <div class="filtros">
+        <input type="text" placeholder="Buscar cliente">
+        <select>
+            <option>Ruta</option>
+            <option>Centro</option>
+            <option>Ixobel</option>
+            <option>La Amistad</option>
+        </select>
+        <select>
+            <option>Estado</option>
+            <option>Activo</option>
+            <option>Inactivo</option>
+            <option>Pendiente</option>
+        </select>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Ruta</th>
+                <th>Lugar</th>
+                <th>Estado</th>
+                <th>Última Atención</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Cliente de prueba</td>
+                <td>Centro</td>
+                <td>Barrio El Centro</td>
+                <td>Activo</td>
+                <td>Hoy</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<section class="enterprise-tabla" id="solicitudes">
+    <h2>Solicitudes de Servicio</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Nombre</th>
+                <th>Barrio</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>--</td>
+                <td>Sin solicitudes</td>
+                <td>--</td>
+                <td>--</td>
+                <td>Pendiente</td>
+                <td>Revisar</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<footer>
+    <p>© 2026 Transportes Reina Local</p>
+</footer>
+
+</body>
+</html>
