@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwzXP5TDQrNA9rWbDXawXR2L9smjJXj_mpPz6jHRanyFZ-1SevdsYGuKEGANKpYU5mhRg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbw0O1_AygYiYijYAqqV6IPUSs6vz4Kf4h2JrbkW6vI78soN5Al6jzC3uNV3c73yVtF32A/exec";
 
 if(localStorage.getItem("enterpriseAuth") !== "true"){
     window.location.href = "login-enterprise.html";
@@ -563,8 +563,8 @@ function abrirFichaSolicitud(s){
             </div>
 
             <div class="acciones-solicitud">
-                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','APROBADA')" class="btn-mini verde">Aprobar</button>
-                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','RECHAZADA')" class="btn-mini rojo">Denegar</button>
+                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','APROBADA')" class="btn-mini verde">Aprobar y crear cliente</button>
+                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','DENEGADA')" class="btn-mini rojo">Denegar</button>
                 <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','EN_REVISION')" class="btn-mini naranja">En revisión</button>
             </div>
         </div>
@@ -574,20 +574,44 @@ function abrirFichaSolicitud(s){
 }
 
 async function cambiarEstadoSolicitud(idSolicitud, estado){
-    await fetch(API_URL,{
+    let justificacion = "";
+
+    if(estado === "DENEGADA"){
+        justificacion = prompt("Escribe la justificación para denegar esta solicitud:");
+
+        if(!justificacion || !justificacion.trim()){
+            alert("La justificación es obligatoria.");
+            return;
+        }
+    }
+
+    const res = await fetch(API_URL,{
         method:"POST",
+        headers:{
+            "Content-Type":"text/plain;charset=utf-8"
+        },
         body:JSON.stringify({
             action:"actualizarSolicitud",
             idSolicitud,
             estado,
             usuarioRevision:"enterprise",
-            observacion:"Actualizado desde Enterprise"
+            observacion: estado === "DENEGADA" ? "Solicitud denegada" : "Actualizado desde Enterprise",
+            justificacion
         })
     });
 
+    const json = await res.json();
+
+    if(!json.ok){
+        alert("Error: " + json.error);
+        return;
+    }
+
     solicitudes = solicitudes.map(s=>{
         if(String(s.idSolicitud) === String(idSolicitud)){
-            s.estado = estado;
+            s.estado = json.estado || estado;
+            s.justificacion = justificacion;
+            s.clienteIdGenerado = json.clienteIdGenerado || s.clienteIdGenerado || "";
         }
         return s;
     });
