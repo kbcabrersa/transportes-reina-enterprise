@@ -27,23 +27,69 @@ async function getApi(action){
 }
 
 async function cargarDatosEnterprise(){
-    const c = await getApi("clientes");
-    const e = await getApi("eventos");
-    const s = await getApi("listarSolicitudes");
-    const a = await getApi("atenciones");
-    const n = await getApi("noAtendidos");
+    try{
+        const {
+            obtenerClientes,
+            obtenerPagos,
+            obtenerEventosOperativos
+        } = await import("/js/firebase-service.js");
 
-    clientes = Array.isArray(c) ? c : [];
-    eventos = Array.isArray(e) ? e : [];
-    solicitudes = s.solicitudes || [];
-    atenciones = Array.isArray(a) ? a : [];
-    noAtendidos = Array.isArray(n) ? n : [];
+        const [c, p, operativo, s] = await Promise.all([
+            obtenerClientes(),
+            obtenerPagos(),
+            obtenerEventosOperativos(),
+            getApi("listarSolicitudes")
+        ]);
 
-    renderKpis();
-    renderDashboard();
-    renderClientesPaginados(clientes);
-    renderSolicitudes();
-    registrarClickGraficas();
+        clientes = Array.isArray(c) ? c : [];
+
+        // Firestore ya guarda los pagos con el formato que
+        // espera el dashboard: tipo="pago" y fecha.
+        eventos = Array.isArray(p) ? p : [];
+
+        solicitudes = s?.solicitudes || [];
+
+        const operaciones = Array.isArray(operativo) ? operativo : [];
+
+        // El dashboard antiguo espera fecha y tipos
+        // "atencion" / "no_atendido". Firestore usa
+        // fechaHora y ATENDIDO / NO_ATENDIDO.
+        atenciones = operaciones
+            .filter(ev => String(ev.tipo || "").toUpperCase() === "ATENDIDO")
+            .map(ev => ({
+                ...ev,
+                fecha: ev.fechaHora,
+                tipoOriginal: ev.tipo,
+                tipo: "atencion"
+            }));
+
+        noAtendidos = operaciones
+            .filter(ev => String(ev.tipo || "").toUpperCase() === "NO_ATENDIDO")
+            .map(ev => ({
+                ...ev,
+                fecha: ev.fechaHora,
+                tipoOriginal: ev.tipo,
+                tipo: "no_atendido"
+            }));
+
+        renderKpis();
+        renderDashboard();
+        renderClientesPaginados(clientes);
+        renderSolicitudes();
+        registrarClickGraficas();
+
+        console.info("Enterprise cargado desde Firebase", {
+            clientes: clientes.length,
+            pagos: eventos.length,
+            atenciones: atenciones.length,
+            noAtendidos: noAtendidos.length,
+            solicitudes: solicitudes.length
+        });
+
+    }catch(error){
+        console.error("Error cargando Firebase Enterprise:", error);
+        alert("No se pudieron cargar los datos de Firebase.");
+    }
 }
 
 function cerrarSesion(){
