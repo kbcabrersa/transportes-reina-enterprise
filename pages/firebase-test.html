@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Test - Transportes Reina</title>
+</head>
+<body>
+  <h1>Prueba Firebase</h1>
+  <pre id="resultado">Conectando...</pre>
+
+  <script type="module">
+    import {
+      obtenerClientes,
+      obtenerPagos,
+      obtenerEventosOperativos
+    } from "../js/firebase-service.js";
+
+    const salida = document.getElementById("resultado");
+
+    try {
+      const [clientes, pagos, eventos] = await Promise.all([
+        obtenerClientes(),
+        obtenerPagos(),
+        obtenerEventosOperativos()
+      ]);
+
+      salida.textContent =
+        "Firebase conectado correctamente\n\n" +
+        "Clientes: " + clientes.length + "\n" +
+        "Pagos: " + pagos.length + "\n" +
+        "Eventos operativos: " + eventos.length;
+    } catch (error) {
+      console.error(error);
+      salida.textContent =
+        "ERROR FIREBASE\n\n" +
+        error.code + "\n" +
+        error.message;
+    }
+  </script>
+</body>
+</html>
