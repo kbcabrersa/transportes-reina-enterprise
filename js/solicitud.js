@@ -1,5 +1,3 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwzXP5TDQrNA9rWbDXawXR2L9smjJXj_mpPz6jHRanyFZ-1SevdsYGuKEGANKpYU5mhRg/exec";
-
 const mapa = L.map("mapaSolicitud").setView([16.331, -89.416], 14);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -57,64 +55,50 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
     const mensaje = document.getElementById("mensajeSolicitud");
     mensaje.textContent = "Enviando solicitud...";
 
-    const inputFoto = document.querySelector('input[type="file"]');
-    const archivo = inputFoto?.files?.[0];
-
-    const fotoBase64 = await archivoABase64(archivo);
-
-    const data = {
-        action: "crearSolicitud",
-        nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
-        telefono: document.getElementById("telefono").value.trim(),
-        correo: document.getElementById("correo").value.trim(),
-        tipoServicio: document.getElementById("tipoServicio").value,
-        barrio: document.getElementById("barrio").value.trim(),
-        direccion: document.getElementById("direccion").value.trim(),
-        referencia: document.getElementById("referencia").value.trim(),
-        lat: document.getElementById("lat").value,
-        lng: document.getElementById("lng").value,
-        observacion: document.getElementById("observacion").value.trim(),
-        fotoBase64: fotoBase64,
-        fotoNombre: archivo ? archivo.name : "",
-        fotoMime: archivo ? archivo.type : ""
-    };
-
     try{
-        const res = await fetch(API_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "text/plain;charset=utf-8"
-            },
-            body: JSON.stringify(data)
-        });
+        const { crearSolicitud } = await import("/js/firebase-service.js?v=20260821-1");
 
-        const json = await res.json();
+        const data = {
+            nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
+            telefono: document.getElementById("telefono").value.trim(),
+            correo: document.getElementById("correo").value.trim(),
+            tipoServicio: document.getElementById("tipoServicio").value,
+            barrio: document.getElementById("barrio").value.trim(),
+            direccion: document.getElementById("direccion").value.trim(),
+            referencia: document.getElementById("referencia").value.trim(),
+            lat: document.getElementById("lat").value,
+            lng: document.getElementById("lng").value,
+            observacion: document.getElementById("observacion").value.trim()
+        };
 
-        if(json.ok){
-            document.body.innerHTML = `
-                <main class="solicitud-exito">
-                    <div class="exito-card">
-                        <h1>✅ Solicitud enviada correctamente</h1>
-                        <p>Gracias por confiar en <strong>Transportes Reina Local</strong>.</p>
-                        <p>Su solicitud será revisada por nuestro equipo administrativo.</p>
-                        <p>Nos comunicaremos con usted para confirmar cobertura, condiciones y programación del servicio.</p>
-                        <h3>Número de solicitud</h3>
-                        <p class="codigo-solicitud">${json.idSolicitud}</p>
-                        <p class="redirigiendo">Regresando al sitio principal...</p>
-                    </div>
-                </main>
-            `;
+        const json = await crearSolicitud(data);
 
-            setTimeout(() => {
-                window.location.href = "../index.html";
-            }, 7000);
+        document.body.innerHTML = `
+            <main class="solicitud-exito">
+                <div class="exito-card">
+                    <h1>✅ Solicitud enviada correctamente</h1>
+                    <p>Gracias por confiar en <strong>Transportes Reina Local</strong>.</p>
+                    <p>Su solicitud será revisada por nuestro equipo administrativo.</p>
+                    <p>Nos comunicaremos con usted para confirmar cobertura, condiciones y programación del servicio.</p>
 
-        }else{
-            mensaje.textContent = "Error: " + json.error;
-        }
+                    <h3>Número de solicitud</h3>
+                    <p class="codigo-solicitud">${json.idSolicitud}</p>
+
+                    <p class="redirigiendo">Regresando al sitio principal...</p>
+                </div>
+            </main>
+        `;
+
+        setTimeout(() => {
+            window.location.href = "../index.html";
+        }, 7000);
 
     }catch(error){
-        mensaje.textContent = "No se pudo enviar la solicitud. Revisa la consola.";
-        console.error(error);
+        console.error("Error creando solicitud en Firebase:", error);
+
+        mensaje.textContent =
+            "No se pudo enviar la solicitud. " +
+            "[" + (error.code || "sin-codigo") + "] " +
+            (error.message || error);
     }
 });

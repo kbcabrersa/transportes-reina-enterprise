@@ -1,5 +1,3 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwzXP5TDQrNA9rWbDXawXR2L9smjJXj_mpPz6jHRanyFZ-1SevdsYGuKEGANKpYU5mhRg/exec";
-
 if(localStorage.getItem("enterpriseAuth") !== "true"){
     window.location.href = "login-enterprise.html";
 }
@@ -16,29 +14,21 @@ let clientesFiltradosActuales = [];
 
 const datosGraficas = {};
 
-async function getApi(action){
-    try{
-        const r = await fetch(API_URL + "?action=" + action);
-        return await r.json();
-    }catch(e){
-        console.error("Error API:", action, e);
-        return [];
-    }
-}
 
 async function cargarDatosEnterprise(){
     try{
         const {
             obtenerClientes,
             obtenerPagos,
-            obtenerEventosOperativos
-        } = await import("/js/firebase-service.js");
+            obtenerEventosOperativos,
+            obtenerSolicitudes
+        } = await import("/js/firebase-service.js?v=20260821-1");
 
         const [c, p, operativo, s] = await Promise.all([
             obtenerClientes(),
             obtenerPagos(),
             obtenerEventosOperativos(),
-            getApi("listarSolicitudes")
+            obtenerSolicitudes()
         ]);
 
         clientes = Array.isArray(c) ? c : [];
@@ -47,7 +37,7 @@ async function cargarDatosEnterprise(){
         // espera el dashboard: tipo="pago" y fecha.
         eventos = Array.isArray(p) ? p : [];
 
-        solicitudes = s?.solicitudes || [];
+        solicitudes = Array.isArray(s) ? s : [];
 
         const operaciones = Array.isArray(operativo) ? operativo : [];
 
@@ -623,7 +613,9 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
     let justificacion = "";
 
     if(estado === "DENEGADA"){
-        justificacion = prompt("Escribe la justificación para denegar esta solicitud:");
+        justificacion = prompt(
+            "Escribe la justificación para denegar esta solicitud:"
+        );
 
         if(!justificacion || !justificacion.trim()){
             alert("La justificación es obligatoria.");
@@ -631,39 +623,68 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
         }
     }
 
-    const res = await fetch(API_URL,{
-        method:"POST",
-        headers:{
-            "Content-Type":"text/plain;charset=utf-8"
-        },
-        body:JSON.stringify({
-            action:"actualizarSolicitud",
-            idSolicitud,
-            estado,
-            usuarioRevision:"enterprise",
-            observacion: estado === "DENEGADA" ? "Solicitud denegada" : "Actualizado desde Enterprise",
-            justificacion
-        })
-    });
+    const solicitud = solicitudes.find(
+        s => String(s.idSolicitud) === String(idSolicitud)
+    );
 
-    const json = await res.json();
-
-    if(!json.ok){
-        alert("Error: " + json.error);
+    if(!solicitud){
+        alert("No se encontró la solicitud.");
         return;
     }
 
-    solicitudes = solicitudes.map(s=>{
-        if(String(s.idSolicitud) === String(idSolicitud)){
-            s.estado = json.estado || estado;
-            s.justificacion = justificacion;
-            s.clienteIdGenerado = json.clienteIdGenerado || s.clienteIdGenerado || "";
+    try{
+        const {
+            actualizarEstadoSolicitud
+        } = await import("/js/firebase-service.js?v=20260821-1");
+
+        const resultado = await actualizarEstadoSolicitud(
+            solicitud,
+            estado,
+            {
+                usuarioRevision: "enterprise",
+                justificacion
+            }
+        );
+
+        solicitudes = solicitudes.map(s => {
+            if(String(s.idSolicitud) === String(idSolicitud)){
+                return {
+                    ...s,
+                    estado: resultado.estado || estado,
+                    justificacion,
+                    clienteIdGenerado:
+                        resultado.clienteIdGenerado ||
+                        s.clienteIdGenerado ||
+                        ""
+                };
+            }
+
+            return s;
+        });
+
+        renderSolicitudes();
+        renderKpis();
+
+        document.querySelector(".cliente-modal")?.remove();
+
+        if(resultado.estado === "CONVERTIDA_CLIENTE"){
+            alert(
+                "Solicitud convertida en cliente correctamente.\n\n" +
+                "Cliente Firebase: " +
+                resultado.clienteIdGenerado
+            );
         }
-        return s;
-    });
 
-    renderSolicitudes();
-    renderKpis();
+    }catch(error){
+        console.error(
+            "Error actualizando solicitud en Firebase:",
+            error
+        );
 
-    document.querySelector(".cliente-modal")?.remove();
+        alert(
+            "No se pudo actualizar la solicitud.\n\n" +
+            (error.message || error)
+        );
+    }
 }
+
