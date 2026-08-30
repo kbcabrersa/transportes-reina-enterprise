@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    /*
+     * Fotografías enviadas junto con una solicitud pública.
+     *
+     * Temporal durante la migración:
+     * - se pueden subir imágenes nuevas;
+     * - se pueden leer para mostrarlas en Enterprise;
+     * - no se pueden sobrescribir ni borrar.
+     */
+
+    match /solicitudes/{solicitudId}/{archivo} {
+
+      allow read: if true;
+
+      allow create: if
+        resource == null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

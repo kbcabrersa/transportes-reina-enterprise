@@ -8,7 +8,13 @@ import {
   runTransaction
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
-import { db } from "./firebase-config.js";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-storage.js";
+
+import { db, storage } from "./firebase-config.js";
 
 
 /* =========================================================
@@ -50,7 +56,8 @@ export function obtenerSolicitudes() {
    ========================================================= */
 
 export async function crearSolicitud(datos) {
-  const idSolicitud = "SOL-" + Date.now();
+  const idSolicitud =
+    datos.idSolicitud || ("SOL-" + Date.now());
   const ref = doc(db, "solicitudes", idSolicitud);
 
   const solicitud = {
@@ -72,6 +79,7 @@ export async function crearSolicitud(datos) {
     lng: numeroONull(datos.lng),
 
     fotoDriveId: datos.fotoDriveId || "",
+    fotoUrl: String(datos.fotoUrl || ""),
 
     estado: "PENDIENTE",
     observacion: String(datos.observacion || "").trim(),
@@ -91,6 +99,35 @@ export async function crearSolicitud(datos) {
     ok: true,
     idSolicitud
   };
+}
+
+export async function subirFotoSolicitud(file, idSolicitud) {
+  if (!file) return "";
+
+  if (!idSolicitud) {
+    throw new Error("idSolicitud requerido para subir fotografía.");
+  }
+
+  const extension =
+    String(file.name || "")
+      .split(".")
+      .pop()
+      ?.toLowerCase() || "jpg";
+
+  const storageRef = ref(
+    storage,
+    `solicitudes/${idSolicitud}/referencia.${extension}`
+  );
+
+  await uploadBytes(
+    storageRef,
+    file,
+    {
+      contentType: file.type || "image/jpeg"
+    }
+  );
+
+  return await getDownloadURL(storageRef);
 }
 
 

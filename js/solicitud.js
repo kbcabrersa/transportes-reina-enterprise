@@ -57,7 +57,7 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
 
     try{
         const firebaseService =
-            await import("/js/firebase-service.js?v=20260821-1");
+            await import("/js/firebase-service.js?v=20260830-2");
 
         console.log(
             "Exports firebase-service:",
@@ -66,7 +66,29 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
 
         const crearSolicitud = firebaseService.crearSolicitud;
 
+        const inputFoto =
+            document.querySelector('input[type="file"]');
+
+        const archivo =
+            inputFoto?.files?.[0] || null;
+
+        const idSolicitud =
+            "SOL-" + Date.now();
+
+        let fotoUrl = "";
+
+        if(archivo){
+            mensaje.textContent = "Subiendo fotografía...";
+
+            fotoUrl =
+                await firebaseService.subirFotoSolicitud(
+                    archivo,
+                    idSolicitud
+                );
+        }
+
         const data = {
+            idSolicitud,
             nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
             telefono: document.getElementById("telefono").value.trim(),
             correo: document.getElementById("correo").value.trim(),
@@ -76,8 +98,11 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
             referencia: document.getElementById("referencia").value.trim(),
             lat: document.getElementById("lat").value,
             lng: document.getElementById("lng").value,
-            observacion: document.getElementById("observacion").value.trim()
+            observacion: document.getElementById("observacion").value.trim(),
+            fotoUrl
         };
+
+        mensaje.textContent = "Guardando solicitud...";
 
         const json = await crearSolicitud(data);
 

@@ -1,0 +1,116 @@
+diff --git a/.firebaserc b/.firebaserc
+new file mode 100644
+index 0000000..4330ed8
+--- /dev/null
++++ b/.firebaserc
+@@ -0,0 +1,5 @@
++{
++  "projects": {
++    "default": "transportes-reina"
++  }
++}
+diff --git a/firebase.json b/firebase.json
+new file mode 100644
+index 0000000..42feae7
+--- /dev/null
++++ b/firebase.json
+@@ -0,0 +1,9 @@
++{
++  "firestore": {
++    "database": "(default)",
++    "rules": "firestore.rules"
++  },
++  "storage": {
++    "rules": "storage.rules"
++  }
++}
+diff --git a/firestore.rules b/firestore.rules
+new file mode 100644
+index 0000000..f7ea0ae
+--- /dev/null
++++ b/firestore.rules
+@@ -0,0 +1,47 @@
++rules_version = '2';
++
++service cloud.firestore {
++  match /databases/{database}/documents {
++
++    /*
++     * REGLAS TEMPORALES DE PRUEBA PARA SYNCCORE.
++     * Todavía no tienen autenticación por usuario/dispositivo.
++     */
++
++    match /clientes/{clienteId} {
++      allow read, create, update: if true;
++      allow delete: if false;
++    }
++
++    match /identidades_clientes/{identityKey} {
++      allow read, create: if true;
++      allow update, delete: if false;
++    }
++
++    match /pagos/{pagoId} {
++      allow read, create, update: if true;
++      allow delete: if false;
++    }
++
++    match /operativo_eventos/{eventoId} {
++      allow read, create, update: if true;
++      allow delete: if false;
++    }
++
++    match /solicitudes/{solicitudId} {
++      allow create: if
++        request.resource.data.idSolicitud == solicitudId
++        && request.resource.data.estado == "PENDIENTE"
++        && request.resource.data.clienteIdGenerado == ""
++        && request.resource.data.usuarioRevision == ""
++        && request.resource.data.justificacion == "";
++
++      allow read, update: if true;
++      allow delete: if false;
++    }
++
++    match /{document=**} {
++      allow read, write: if false;
++    }
++  }
++}
+diff --git a/storage.rules b/storage.rules
+new file mode 100644
+index 0000000..cb63f91
+--- /dev/null
++++ b/storage.rules
+@@ -0,0 +1,31 @@
++rules_version = '2';
++
++service firebase.storage {
++  match /b/{bucket}/o {
++
++    /*
++     * Fotografías enviadas junto con una solicitud pública.
++     *
++     * Temporal durante la migración:
++     * - se pueden subir imágenes nuevas;
++     * - se pueden leer para mostrarlas en Enterprise;
++     * - no se pueden sobrescribir ni borrar.
++     */
++
++    match /solicitudes/{solicitudId}/{archivo} {
++
++      allow read: if true;
++
++      allow create: if
++        resource == null
++        && request.resource.size < 10 * 1024 * 1024
++        && request.resource.contentType.matches('image/.*');
++
++      allow update, delete: if false;
++    }
++
++    match /{allPaths=**} {
++      allow read, write: if false;
++    }
++  }
++}

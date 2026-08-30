@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /*
+     * REGLAS TEMPORALES DE PRUEBA PARA SYNCCORE.
+     * Todavía no tienen autenticación por usuario/dispositivo.
+     */
+
+    match /clientes/{clienteId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    match /identidades_clientes/{identityKey} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+
+    match /pagos/{pagoId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    match /operativo_eventos/{eventoId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    match /solicitudes/{solicitudId} {
+      allow create: if
+        request.resource.data.idSolicitud == solicitudId
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.clienteIdGenerado == ""
+        && request.resource.data.usuarioRevision == ""
+        && request.resource.data.justificacion == "";
+
+      allow read, update: if true;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,142 @@
+diff --git a/js/dashboard-enterprise.js b/js/dashboard-enterprise.js
+index 0958262..a723299 100644
+--- a/js/dashboard-enterprise.js
++++ b/js/dashboard-enterprise.js
+@@ -549,9 +549,13 @@ function filtrarSolicitudes(){
+ }
+ 
+ function abrirFichaSolicitud(s){
+-    const foto = s.fotoDriveId
+-        ? `https://drive.google.com/thumbnail?sz=w900&id=${s.fotoDriveId}`
+-        : "../assets/banners/banner1.png";
++    const foto =
++        s.fotoUrl ||
++        (
++            s.fotoDriveId
++                ? `https://drive.google.com/thumbnail?sz=w900&id=${s.fotoDriveId}`
++                : "../assets/banners/banner1.png"
++        );
+ 
+     const maps = s.lat && s.lng
+         ? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(s.lng)-0.003},${Number(s.lat)-0.003},${Number(s.lng)+0.003},${Number(s.lat)+0.003}&layer=mapnik&marker=${s.lat},${s.lng}`
+diff --git a/js/firebase-service.js b/js/firebase-service.js
+index 3f67523..8003b44 100644
+--- a/js/firebase-service.js
++++ b/js/firebase-service.js
+@@ -8,7 +8,13 @@ import {
+   runTransaction
+ } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+ 
+-import { db } from "./firebase-config.js";
++import {
++  ref,
++  uploadBytes,
++  getDownloadURL
++} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-storage.js";
++
++import { db, storage } from "./firebase-config.js";
+ 
+ 
+ /* =========================================================
+@@ -50,7 +56,8 @@ export function obtenerSolicitudes() {
+    ========================================================= */
+ 
+ export async function crearSolicitud(datos) {
+-  const idSolicitud = "SOL-" + Date.now();
++  const idSolicitud =
++    datos.idSolicitud || ("SOL-" + Date.now());
+   const ref = doc(db, "solicitudes", idSolicitud);
+ 
+   const solicitud = {
+@@ -72,6 +79,7 @@ export async function crearSolicitud(datos) {
+     lng: numeroONull(datos.lng),
+ 
+     fotoDriveId: datos.fotoDriveId || "",
++    fotoUrl: String(datos.fotoUrl || ""),
+ 
+     estado: "PENDIENTE",
+     observacion: String(datos.observacion || "").trim(),
+@@ -93,6 +101,35 @@ export async function crearSolicitud(datos) {
+   };
+ }
+ 
++export async function subirFotoSolicitud(file, idSolicitud) {
++  if (!file) return "";
++
++  if (!idSolicitud) {
++    throw new Error("idSolicitud requerido para subir fotografía.");
++  }
++
++  const extension =
++    String(file.name || "")
++      .split(".")
++      .pop()
++      ?.toLowerCase() || "jpg";
++
++  const storageRef = ref(
++    storage,
++    `solicitudes/${idSolicitud}/referencia.${extension}`
++  );
++
++  await uploadBytes(
++    storageRef,
++    file,
++    {
++      contentType: file.type || "image/jpeg"
++    }
++  );
++
++  return await getDownloadURL(storageRef);
++}
++
+ 
+ /* =========================================================
+    REVISIÓN / CONVERSIÓN
+diff --git a/js/solicitud.js b/js/solicitud.js
+index cedec0f..70751cd 100644
+--- a/js/solicitud.js
++++ b/js/solicitud.js
+@@ -66,7 +66,29 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
+ 
+         const crearSolicitud = firebaseService.crearSolicitud;
+ 
++        const inputFoto =
++            document.querySelector('input[type="file"]');
++
++        const archivo =
++            inputFoto?.files?.[0] || null;
++
++        const idSolicitud =
++            "SOL-" + Date.now();
++
++        let fotoUrl = "";
++
++        if(archivo){
++            mensaje.textContent = "Subiendo fotografía...";
++
++            fotoUrl =
++                await firebaseService.subirFotoSolicitud(
++                    archivo,
++                    idSolicitud
++                );
++        }
++
+         const data = {
++            idSolicitud,
+             nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
+             telefono: document.getElementById("telefono").value.trim(),
+             correo: document.getElementById("correo").value.trim(),
+@@ -76,9 +98,12 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
+             referencia: document.getElementById("referencia").value.trim(),
+             lat: document.getElementById("lat").value,
+             lng: document.getElementById("lng").value,
+-            observacion: document.getElementById("observacion").value.trim()
++            observacion: document.getElementById("observacion").value.trim(),
++            fotoUrl
+         };
+ 
++        mensaje.textContent = "Guardando solicitud...";
++
+         const json = await crearSolicitud(data);
+ 
+         document.body.innerHTML = `

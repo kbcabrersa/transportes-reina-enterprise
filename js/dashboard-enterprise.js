@@ -22,7 +22,7 @@ async function cargarDatosEnterprise(){
             obtenerPagos,
             obtenerEventosOperativos,
             obtenerSolicitudes
-        } = await import("/js/firebase-service.js?v=20260821-1");
+        } = await import("/js/firebase-service.js?v=20260830-2");
 
         const [c, p, operativo, s] = await Promise.all([
             obtenerClientes(),
@@ -549,9 +549,13 @@ function filtrarSolicitudes(){
 }
 
 function abrirFichaSolicitud(s){
-    const foto = s.fotoDriveId
-        ? `https://drive.google.com/thumbnail?sz=w900&id=${s.fotoDriveId}`
-        : "../assets/banners/banner1.png";
+    const foto =
+        s.fotoUrl ||
+        (
+            s.fotoDriveId
+                ? `https://drive.google.com/thumbnail?sz=w900&id=${s.fotoDriveId}`
+                : "../assets/banners/banner1.png"
+        );
 
     const maps = s.lat && s.lng
         ? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(s.lng)-0.003},${Number(s.lat)-0.003},${Number(s.lng)+0.003},${Number(s.lat)+0.003}&layer=mapnik&marker=${s.lat},${s.lng}`
@@ -635,7 +639,7 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
     try{
         const {
             actualizarEstadoSolicitud
-        } = await import("/js/firebase-service.js?v=20260821-1");
+        } = await import("/js/firebase-service.js?v=20260830-2");
 
         const resultado = await actualizarEstadoSolicitud(
             solicitud,
