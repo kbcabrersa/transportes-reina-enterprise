@@ -22,7 +22,7 @@ async function cargarDatosEnterprise(){
             obtenerPagos,
             obtenerEventosOperativos,
             obtenerSolicitudes
-        } = await import("/js/firebase-service.js?v=20260830-3");
+        } = await import("/js/firebase-service.js?v=20260830-4");
 
         const [c, p, operativo, s] = await Promise.all([
             obtenerClientes(),
@@ -242,9 +242,13 @@ function abrirPerfilCliente(cliente){
         String(ev.clienteNombre || "").toLowerCase() === String(cliente.nombre || "").toLowerCase()
     );
 
-    const foto = cliente.fotoDriveId
-        ? `https://drive.google.com/thumbnail?sz=w900&id=${cliente.fotoDriveId}`
-        : "../assets/banners/banner1.png";
+    const foto =
+        cliente.fotoUrl ||
+        (
+            cliente.fotoDriveId
+                ? `https://drive.google.com/thumbnail?sz=w900&id=${cliente.fotoDriveId}`
+                : "../assets/banners/banner1.png"
+        );
 
     const modal = document.createElement("div");
     modal.className = "cliente-modal";
@@ -612,6 +616,63 @@ function abrirFichaSolicitud(s){
 async function cambiarEstadoSolicitud(idSolicitud, estado){
     let justificacion = "";
 
+    const solicitud = solicitudes.find(
+        s => String(s.idSolicitud) === String(idSolicitud)
+    );
+
+    if(!solicitud){
+        alert("No se encontró la solicitud.");
+        return;
+    }
+
+    let datosAprobacion = {};
+
+    if(estado === "APROBADA"){
+        const ruta = prompt(
+            "Ruta del cliente:\n\n" +
+            "Ejemplos: Centro, Amistad, Ixobel"
+        );
+
+        if(!ruta || !ruta.trim()){
+            alert("La ruta es obligatoria.");
+            return;
+        }
+
+        const precioTexto = prompt(
+            "Tarifa mensual en quetzales:",
+            "60"
+        );
+
+        const precio = Number(precioTexto);
+
+        if(!Number.isFinite(precio) || precio <= 0){
+            alert("La tarifa no es válida.");
+            return;
+        }
+
+        const diaTexto = prompt(
+            "Día de pago (1 al 31):",
+            String(new Date().getDate())
+        );
+
+        const diaPago = Number(diaTexto);
+
+        if(
+            !Number.isInteger(diaPago) ||
+            diaPago < 1 ||
+            diaPago > 31
+        ){
+            alert("El día de pago no es válido.");
+            return;
+        }
+
+        datosAprobacion = {
+            ruta: ruta.trim(),
+            precio,
+            diaPago
+        };
+    }
+
     if(estado === "DENEGADA"){
         justificacion = prompt(
             "Escribe la justificación para denegar esta solicitud:"
@@ -623,26 +684,18 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
         }
     }
 
-    const solicitud = solicitudes.find(
-        s => String(s.idSolicitud) === String(idSolicitud)
-    );
-
-    if(!solicitud){
-        alert("No se encontró la solicitud.");
-        return;
-    }
-
     try{
         const {
             actualizarEstadoSolicitud
-        } = await import("/js/firebase-service.js?v=20260830-3");
+        } = await import("/js/firebase-service.js?v=20260830-4");
 
         const resultado = await actualizarEstadoSolicitud(
             solicitud,
             estado,
             {
                 usuarioRevision: "enterprise",
-                justificacion
+                justificacion,
+                ...datosAprobacion
             }
         );
 

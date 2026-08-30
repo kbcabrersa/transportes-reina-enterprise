@@ -1,0 +1,242 @@
+diff --git a/js/dashboard-enterprise.js b/js/dashboard-enterprise.js
+index 6135a29..51aa9c2 100644
+--- a/js/dashboard-enterprise.js
++++ b/js/dashboard-enterprise.js
+@@ -22,7 +22,7 @@ async function cargarDatosEnterprise(){
+             obtenerPagos,
+             obtenerEventosOperativos,
+             obtenerSolicitudes
+-        } = await import("/js/firebase-service.js?v=20260830-3");
++        } = await import("/js/firebase-service.js?v=20260830-4");
+ 
+         const [c, p, operativo, s] = await Promise.all([
+             obtenerClientes(),
+@@ -242,9 +242,13 @@ function abrirPerfilCliente(cliente){
+         String(ev.clienteNombre || "").toLowerCase() === String(cliente.nombre || "").toLowerCase()
+     );
+ 
+-    const foto = cliente.fotoDriveId
+-        ? `https://drive.google.com/thumbnail?sz=w900&id=${cliente.fotoDriveId}`
+-        : "../assets/banners/banner1.png";
++    const foto =
++        cliente.fotoUrl ||
++        (
++            cliente.fotoDriveId
++                ? `https://drive.google.com/thumbnail?sz=w900&id=${cliente.fotoDriveId}`
++                : "../assets/banners/banner1.png"
++        );
+ 
+     const modal = document.createElement("div");
+     modal.className = "cliente-modal";
+@@ -612,6 +616,63 @@ function abrirFichaSolicitud(s){
+ async function cambiarEstadoSolicitud(idSolicitud, estado){
+     let justificacion = "";
+ 
++    const solicitud = solicitudes.find(
++        s => String(s.idSolicitud) === String(idSolicitud)
++    );
++
++    if(!solicitud){
++        alert("No se encontró la solicitud.");
++        return;
++    }
++
++    let datosAprobacion = {};
++
++    if(estado === "APROBADA"){
++        const ruta = prompt(
++            "Ruta del cliente:\n\n" +
++            "Ejemplos: Centro, Amistad, Ixobel"
++        );
++
++        if(!ruta || !ruta.trim()){
++            alert("La ruta es obligatoria.");
++            return;
++        }
++
++        const precioTexto = prompt(
++            "Tarifa mensual en quetzales:",
++            "60"
++        );
++
++        const precio = Number(precioTexto);
++
++        if(!Number.isFinite(precio) || precio <= 0){
++            alert("La tarifa no es válida.");
++            return;
++        }
++
++        const diaTexto = prompt(
++            "Día de pago (1 al 31):",
++            String(new Date().getDate())
++        );
++
++        const diaPago = Number(diaTexto);
++
++        if(
++            !Number.isInteger(diaPago) ||
++            diaPago < 1 ||
++            diaPago > 31
++        ){
++            alert("El día de pago no es válido.");
++            return;
++        }
++
++        datosAprobacion = {
++            ruta: ruta.trim(),
++            precio,
++            diaPago
++        };
++    }
++
+     if(estado === "DENEGADA"){
+         justificacion = prompt(
+             "Escribe la justificación para denegar esta solicitud:"
+@@ -623,26 +684,18 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
+         }
+     }
+ 
+-    const solicitud = solicitudes.find(
+-        s => String(s.idSolicitud) === String(idSolicitud)
+-    );
+-
+-    if(!solicitud){
+-        alert("No se encontró la solicitud.");
+-        return;
+-    }
+-
+     try{
+         const {
+             actualizarEstadoSolicitud
+-        } = await import("/js/firebase-service.js?v=20260830-3");
++        } = await import("/js/firebase-service.js?v=20260830-4");
+ 
+         const resultado = await actualizarEstadoSolicitud(
+             solicitud,
+             estado,
+             {
+                 usuarioRevision: "enterprise",
+-                justificacion
++                justificacion,
++                ...datosAprobacion
+             }
+         );
+ 
+diff --git a/js/firebase-service.js b/js/firebase-service.js
+index b4f5e2a..146978f 100644
+--- a/js/firebase-service.js
++++ b/js/firebase-service.js
+@@ -150,7 +150,11 @@ export async function actualizarEstadoSolicitud(
+   let estadoFinal = estado;
+ 
+   if (estado === "APROBADA") {
+-    clienteIdGenerado = await convertirSolicitudACliente(solicitud);
++    clienteIdGenerado = await convertirSolicitudACliente(
++      solicitud,
++      opciones
++    );
++
+     estadoFinal = "CONVERTIDA_CLIENTE";
+   }
+ 
+@@ -179,25 +183,61 @@ export async function actualizarEstadoSolicitud(
+    SOLICITUD → CLIENTE
+    ========================================================= */
+ 
+-async function convertirSolicitudACliente(solicitud) {
++async function convertirSolicitudACliente(
++  solicitud,
++  opciones = {}
++) {
+   const ahora = Date.now();
+-  const fecha = new Date();
+ 
+-  const ruta = rutaPorBarrio(solicitud.barrio || "");
+-  const lugar = String(solicitud.barrio || "").trim();
+-  const nombre = String(solicitud.nombreCompleto || "").trim();
++  const lugar =
++    String(solicitud.barrio || "").trim();
++
++  const nombre =
++    String(solicitud.nombreCompleto || "").trim();
++
++  const ruta =
++    String(opciones.ruta || "").trim();
++
++  const precio =
++    Number(opciones.precio);
++
++  const diaPago =
++    Number(opciones.diaPago);
+ 
+   if (!nombre) {
+-    throw new Error("La solicitud no tiene nombre.");
++    throw new Error(
++      "La solicitud no tiene nombre."
++    );
+   }
+ 
+   if (!lugar) {
+-    throw new Error("La solicitud no tiene barrio/lugar.");
++    throw new Error(
++      "La solicitud no tiene barrio/lugar."
++    );
+   }
+ 
+   if (!ruta) {
+     throw new Error(
+-      "No se pudo determinar la ruta para el barrio: " + lugar
++      "Debe seleccionar una ruta."
++    );
++  }
++
++  if (
++    !Number.isFinite(precio) ||
++    precio <= 0
++  ) {
++    throw new Error(
++      "Debe ingresar una tarifa válida."
++    );
++  }
++
++  if (
++    !Number.isInteger(diaPago) ||
++    diaPago < 1 ||
++    diaPago > 31
++  ) {
++    throw new Error(
++      "El día de pago debe estar entre 1 y 31."
+     );
+   }
+ 
+@@ -258,15 +298,16 @@ async function convertirSolicitudACliente(solicitud) {
+         lugar,
+         lugarNormalizado,
+ 
+-        diaPago: fecha.getDate(),
++        diaPago,
+ 
+         tipoServicio:
+           String(solicitud.tipoServicio || "Basico").trim(),
+ 
+-        precio: "",
++        precio,
+ 
+         fotoPath: null,
+         fotoDriveId: solicitud.fotoDriveId || null,
++        fotoUrl: solicitud.fotoUrl || null,
+ 
+         lat: numeroONull(solicitud.lat),
+         lng: numeroONull(solicitud.lng),
+diff --git a/pages/dashboard-enterprise.html b/pages/dashboard-enterprise.html
+index 99bcb96..25f0960 100644
+--- a/pages/dashboard-enterprise.html
++++ b/pages/dashboard-enterprise.html
+@@ -127,6 +127,6 @@
+ </div>
+ </main>
+ 
+-<script src="../js/dashboard-enterprise.js"></script>
++<script src="../js/dashboard-enterprise.js?v=20260830-5"></script>
+ </body>
+ </html>

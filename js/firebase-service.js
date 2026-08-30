@@ -150,7 +150,11 @@ export async function actualizarEstadoSolicitud(
   let estadoFinal = estado;
 
   if (estado === "APROBADA") {
-    clienteIdGenerado = await convertirSolicitudACliente(solicitud);
+    clienteIdGenerado = await convertirSolicitudACliente(
+      solicitud,
+      opciones
+    );
+
     estadoFinal = "CONVERTIDA_CLIENTE";
   }
 
@@ -179,25 +183,61 @@ export async function actualizarEstadoSolicitud(
    SOLICITUD → CLIENTE
    ========================================================= */
 
-async function convertirSolicitudACliente(solicitud) {
+async function convertirSolicitudACliente(
+  solicitud,
+  opciones = {}
+) {
   const ahora = Date.now();
-  const fecha = new Date();
 
-  const ruta = rutaPorBarrio(solicitud.barrio || "");
-  const lugar = String(solicitud.barrio || "").trim();
-  const nombre = String(solicitud.nombreCompleto || "").trim();
+  const lugar =
+    String(solicitud.barrio || "").trim();
+
+  const nombre =
+    String(solicitud.nombreCompleto || "").trim();
+
+  const ruta =
+    String(opciones.ruta || "").trim();
+
+  const precio =
+    Number(opciones.precio);
+
+  const diaPago =
+    Number(opciones.diaPago);
 
   if (!nombre) {
-    throw new Error("La solicitud no tiene nombre.");
+    throw new Error(
+      "La solicitud no tiene nombre."
+    );
   }
 
   if (!lugar) {
-    throw new Error("La solicitud no tiene barrio/lugar.");
+    throw new Error(
+      "La solicitud no tiene barrio/lugar."
+    );
   }
 
   if (!ruta) {
     throw new Error(
-      "No se pudo determinar la ruta para el barrio: " + lugar
+      "Debe seleccionar una ruta."
+    );
+  }
+
+  if (
+    !Number.isFinite(precio) ||
+    precio <= 0
+  ) {
+    throw new Error(
+      "Debe ingresar una tarifa válida."
+    );
+  }
+
+  if (
+    !Number.isInteger(diaPago) ||
+    diaPago < 1 ||
+    diaPago > 31
+  ) {
+    throw new Error(
+      "El día de pago debe estar entre 1 y 31."
     );
   }
 
@@ -258,15 +298,16 @@ async function convertirSolicitudACliente(solicitud) {
         lugar,
         lugarNormalizado,
 
-        diaPago: fecha.getDate(),
+        diaPago,
 
         tipoServicio:
           String(solicitud.tipoServicio || "Basico").trim(),
 
-        precio: "",
+        precio,
 
         fotoPath: null,
         fotoDriveId: solicitud.fotoDriveId || null,
+        fotoUrl: solicitud.fotoUrl || null,
 
         lat: numeroONull(solicitud.lat),
         lng: numeroONull(solicitud.lng),
