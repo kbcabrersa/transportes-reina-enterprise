@@ -56,7 +56,15 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
     mensaje.textContent = "Enviando solicitud...";
 
     try{
-        const { crearSolicitud } = await import("/js/firebase-service.js?v=20260821-1");
+        const firebaseService =
+            await import("/js/firebase-service.js?v=20260821-1");
+
+        console.log(
+            "Exports firebase-service:",
+            Object.keys(firebaseService)
+        );
+
+        const crearSolicitud = firebaseService.crearSolicitud;
 
         const data = {
             nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
