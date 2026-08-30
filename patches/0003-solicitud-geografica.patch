@@ -1,0 +1,386 @@
+diff --git a/js/dashboard-enterprise.js b/js/dashboard-enterprise.js
+index 8ba1e9f..6135a29 100644
+--- a/js/dashboard-enterprise.js
++++ b/js/dashboard-enterprise.js
+@@ -22,7 +22,7 @@ async function cargarDatosEnterprise(){
+             obtenerPagos,
+             obtenerEventosOperativos,
+             obtenerSolicitudes
+-        } = await import("/js/firebase-service.js?v=20260830-2");
++        } = await import("/js/firebase-service.js?v=20260830-3");
+ 
+         const [c, p, operativo, s] = await Promise.all([
+             obtenerClientes(),
+@@ -584,12 +584,8 @@ function abrirFichaSolicitud(s){
+                     <p><strong>Fecha:</strong> ${formatearFecha(s.fechaSolicitud)}</p>
+                     <p><strong>Nombre:</strong> ${s.nombreCompleto || ""}</p>
+                     <p><strong>Teléfono:</strong> ${s.telefono || ""}</p>
+-                    <p><strong>Correo:</strong> ${s.correo || ""}</p>
+-                    <p><strong>Dirección:</strong> ${s.direccion || ""}</p>
+                     <p><strong>Barrio:</strong> ${s.barrio || ""}</p>
+-                    <p><strong>Referencia:</strong> ${s.referencia || ""}</p>
+                     <p><strong>Tipo:</strong> ${s.tipoServicio || ""}</p>
+-                    <p><strong>Observación:</strong> ${s.observacion || ""}</p>
+                 </div>
+ 
+                 <div class="info-box">
+@@ -639,7 +635,7 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
+     try{
+         const {
+             actualizarEstadoSolicitud
+-        } = await import("/js/firebase-service.js?v=20260830-2");
++        } = await import("/js/firebase-service.js?v=20260830-3");
+ 
+         const resultado = await actualizarEstadoSolicitud(
+             solicitud,
+diff --git a/js/firebase-service.js b/js/firebase-service.js
+index 8003b44..b4f5e2a 100644
+--- a/js/firebase-service.js
++++ b/js/firebase-service.js
+@@ -67,11 +67,8 @@ export async function crearSolicitud(datos) {
+ 
+     nombreCompleto: String(datos.nombreCompleto || "").trim(),
+     telefono: String(datos.telefono || "").trim(),
+-    correo: String(datos.correo || "").trim(),
+ 
+-    direccion: String(datos.direccion || "").trim(),
+     barrio: String(datos.barrio || "").trim(),
+-    referencia: String(datos.referencia || "").trim(),
+ 
+     tipoServicio: String(datos.tipoServicio || "").trim(),
+ 
+@@ -82,7 +79,6 @@ export async function crearSolicitud(datos) {
+     fotoUrl: String(datos.fotoUrl || ""),
+ 
+     estado: "PENDIENTE",
+-    observacion: String(datos.observacion || "").trim(),
+ 
+     usuarioRevision: "",
+     fechaRevision: "",
+diff --git a/js/solicitud.js b/js/solicitud.js
+index 7bdff71..768a16d 100644
+--- a/js/solicitud.js
++++ b/js/solicitud.js
+@@ -6,28 +6,148 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+ 
+ let marcador = L.marker([16.331, -89.416], { draggable: true }).addTo(mapa);
+ 
++let barriosGeojson = null;
++
++async function cargarBarriosGeojson(){
++    if(barriosGeojson) return barriosGeojson;
++
++    const respuesta = await fetch(
++        "/assets/mapas/barrios_poptun.geojson"
++    );
++
++    if(!respuesta.ok){
++        throw new Error(
++            "No se pudo cargar barrios_poptun.geojson"
++        );
++    }
++
++    barriosGeojson = await respuesta.json();
++
++    return barriosGeojson;
++}
++
++function puntoEnAnillo(lng, lat, ring){
++    let dentro = false;
++
++    for(
++        let i = 0, j = ring.length - 1;
++        i < ring.length;
++        j = i++
++    ){
++        const xi = ring[i][0];
++        const yi = ring[i][1];
++        const xj = ring[j][0];
++        const yj = ring[j][1];
++
++        const intersecta =
++            ((yi > lat) !== (yj > lat)) &&
++            (
++                lng <
++                (xj - xi) * (lat - yi) /
++                ((yj - yi) || Number.EPSILON) +
++                xi
++            );
++
++        if(intersecta){
++            dentro = !dentro;
++        }
++    }
++
++    return dentro;
++}
++
++function puntoEnPoligono(lng, lat, geometry){
++    if(!geometry) return false;
++
++    if(geometry.type === "Polygon"){
++        const [exterior, ...huecos] =
++            geometry.coordinates;
++
++        if(!puntoEnAnillo(lng, lat, exterior)){
++            return false;
++        }
++
++        return !huecos.some(
++            hueco => puntoEnAnillo(lng, lat, hueco)
++        );
++    }
++
++    if(geometry.type === "MultiPolygon"){
++        return geometry.coordinates.some(poligono => {
++            const [exterior, ...huecos] = poligono;
++
++            if(!puntoEnAnillo(lng, lat, exterior)){
++                return false;
++            }
++
++            return !huecos.some(
++                hueco => puntoEnAnillo(lng, lat, hueco)
++            );
++        });
++    }
++
++    return false;
++}
++
++async function detectarBarrio(lat, lng){
++    const geojson = await cargarBarriosGeojson();
++
++    const feature = geojson.features.find(
++        f => puntoEnPoligono(
++            lng,
++            lat,
++            f.geometry
++        )
++    );
++
++    const nombre = String(
++        feature?.properties?.Name || ""
++    ).trim();
++
++    const inputBarrio =
++        document.getElementById("barrio");
++
++    const salida =
++        document.getElementById("barrioDetectado");
++
++    if(nombre){
++        inputBarrio.value = nombre;
++        salida.textContent = nombre;
++        return nombre;
++    }
++
++    inputBarrio.value = "";
++    salida.textContent = "Fuera de zona detectada";
++
++    return "";
++}
++
+ function actualizarCoordenadas(latlng){
+     document.getElementById("lat").value = latlng.lat;
+     document.getElementById("lng").value = latlng.lng;
+-}
+ 
+-function archivoABase64(file){
+-    return new Promise((resolve, reject)=>{
+-        if(!file) return resolve("");
+-
+-        const reader = new FileReader();
++    detectarBarrio(
++        Number(latlng.lat),
++        Number(latlng.lng)
++    ).catch(error => {
++        console.error(
++            "Error detectando barrio:",
++            error
++        );
+ 
+-        reader.onload = () => {
+-            const base64 = String(reader.result).split(",")[1];
+-            resolve(base64);
+-        };
++        const salida =
++            document.getElementById("barrioDetectado");
+ 
+-        reader.onerror = reject;
+-        reader.readAsDataURL(file);
++        if(salida){
++            salida.textContent =
++                "No se pudo detectar";
++        }
+     });
+ }
+ 
+-actualizarCoordenadas(marcador.getLatLng());
++
++document.getElementById("barrioDetectado").textContent =
++    "Selecciona tu ubicación";
+ 
+ marcador.on("dragend", () => {
+     actualizarCoordenadas(marcador.getLatLng());
+@@ -57,7 +177,7 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
+ 
+     try{
+         const firebaseService =
+-            await import("/js/firebase-service.js?v=20260830-2");
++            await import("/js/firebase-service.js?v=20260830-3");
+ 
+         console.log(
+             "Exports firebase-service:",
+@@ -87,18 +207,48 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
+                 );
+         }
+ 
++        const lat =
++            document.getElementById("lat").value;
++
++        const lng =
++            document.getElementById("lng").value;
++
++        if(!lat || !lng){
++            throw new Error(
++                "Debe seleccionar la ubicación del servicio."
++            );
++        }
++
++        const barrio =
++            await detectarBarrio(
++                Number(lat),
++                Number(lng)
++            );
++
++        if(!barrio){
++            throw new Error(
++                "La ubicación seleccionada no pertenece a un barrio reconocido."
++            );
++        }
++
+         const data = {
+             idSolicitud,
+-            nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
+-            telefono: document.getElementById("telefono").value.trim(),
+-            correo: document.getElementById("correo").value.trim(),
+-            tipoServicio: document.getElementById("tipoServicio").value,
+-            barrio: document.getElementById("barrio").value.trim(),
+-            direccion: document.getElementById("direccion").value.trim(),
+-            referencia: document.getElementById("referencia").value.trim(),
+-            lat: document.getElementById("lat").value,
+-            lng: document.getElementById("lng").value,
+-            observacion: document.getElementById("observacion").value.trim(),
++
++            nombreCompleto:
++                document.getElementById("nombreCompleto")
++                    .value.trim(),
++
++            telefono:
++                document.getElementById("telefono")
++                    .value.trim(),
++
++            tipoServicio:
++                document.getElementById("tipoServicio")
++                    .value,
++
++            barrio,
++            lat,
++            lng,
+             fotoUrl
+         };
+ 
+diff --git a/pages/solicitud.html b/pages/solicitud.html
+index 090cb6d..3bc50b8 100644
+--- a/pages/solicitud.html
++++ b/pages/solicitud.html
+@@ -36,7 +36,6 @@
+ 
+         <input type="text" id="nombreCompleto" placeholder="Nombre completo" required>
+         <input type="tel" id="telefono" placeholder="Número de teléfono / WhatsApp" required>
+-        <input type="email" id="correo" placeholder="Correo electrónico opcional">
+ 
+         <select id="tipoServicio" required>
+             <option value="">Tipo de servicio</option>
+@@ -46,9 +45,6 @@
+             <option value="Industrial">Industrial</option>
+         </select>
+ 
+-        <input type="text" id="barrio" placeholder="Barrio o comunidad" required>
+-        <textarea id="direccion" placeholder="Dirección exacta" required></textarea>
+-        <textarea id="referencia" placeholder="Punto de referencia" required></textarea>
+ 
+         <label class="label-foto">
+             Imagen de referencia del inmueble
+@@ -64,10 +60,15 @@
+ 
+         <div id="mapaSolicitud"></div>
+ 
++        <div id="barrioDetectadoBox" class="barrio-detectado-box">
++            <strong>Barrio detectado:</strong>
++            <span id="barrioDetectado">Sin detectar</span>
++        </div>
++
++        <input type="hidden" id="barrio">
+         <input type="hidden" id="lat">
+         <input type="hidden" id="lng">
+ 
+-        <textarea id="observacion" placeholder="Observaciones adicionales"></textarea>
+ 
+         <div class="terminos-box">
+             <p>
+diff --git a/assets/mapas/barrios_poptun.geojson b/assets/mapas/barrios_poptun.geojson
+new file mode 100755
+index 0000000..a505c60
+--- /dev/null
++++ b/assets/mapas/barrios_poptun.geojson
+@@ -0,0 +1,48 @@
++{
++"type": "FeatureCollection",
++"name": "barrios_poptun__lugares_temporales",
++"features": [
++{ "type": "Feature", "properties": { "id": null, "Name": "La Livertad", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4249194, 16.3526901, 0.0 ], [ -89.4238741, 16.3533325, 0.0 ], [ -89.4251102, 16.3550415, 0.0 ], [ -89.4231004, 16.3564496, 0.0 ], [ -89.4260233, 16.3606716, 0.0 ], [ -89.4272745, 16.3599132, 0.0 ], [ -89.4279123, 16.3607918, 0.0 ], [ -89.4299442, 16.3598094, 0.0 ], [ -89.4249194, 16.3526901, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "La muralla", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.436645, 16.3523483, 0.0 ], [ -89.436085, 16.3524732, 0.0 ], [ -89.4330222, 16.3545602, 0.0 ], [ -89.4379346, 16.3560368, 0.0 ], [ -89.4384452, 16.353711, 0.0 ], [ -89.4412731, 16.3542263, 0.0 ], [ -89.4449794, 16.3515523, 0.0 ], [ -89.4447425, 16.3511097, 0.0 ], [ -89.4437833, 16.3461538, 0.0 ], [ -89.4419119, 16.346895, 0.0 ], [ -89.4374524, 16.3519814, 0.0 ], [ -89.4364645, 16.3517112, 0.0 ], [ -89.436028, 16.3518994, 0.0 ], [ -89.436645, 16.3523483, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Las Delicias", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4414029, 16.3475345, 0.0 ], [ -89.4359851, 16.345979, 0.0 ], [ -89.4333703, 16.3439164, 0.0 ], [ -89.4322639, 16.3456626, 0.0 ], [ -89.4315873, 16.3468769, 0.0 ], [ -89.4307405, 16.3463082, 0.0 ], [ -89.4282764, 16.3480317, 0.0 ], [ -89.4295206, 16.349648, 0.0 ], [ -89.4250258, 16.3526163, 0.0 ], [ -89.4359192, 16.3678913, 0.0 ], [ -89.4364727, 16.3684618, 0.0 ], [ -89.4377759, 16.368915, 0.0 ], [ -89.4391641, 16.3693985, 0.0 ], [ -89.4414152, 16.3667662, 0.0 ], [ -89.4414275, 16.3647908, 0.0 ], [ -89.4411698, 16.3627151, 0.0 ], [ -89.4429829, 16.3591873, 0.0 ], [ -89.437852, 16.3560698, 0.0 ], [ -89.4330753, 16.3544538, 0.0 ], [ -89.436602, 16.3524164, 0.0 ], [ -89.4360605, 16.3518987, 0.0 ], [ -89.4364331, 16.3516966, 0.0 ], [ -89.4374367, 16.3519423, 0.0 ], [ -89.4414029, 16.3475345, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "San Francisco", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4162568, 16.3424256, 0.0 ], [ -89.4225317, 16.3382611, 0.0 ], [ -89.4201758, 16.3349279, 0.0 ], [ -89.4173413, 16.3368163, 0.0 ], [ -89.4159799, 16.335553, 0.0 ], [ -89.4135721, 16.3386663, 0.0 ], [ -89.4162568, 16.3424256, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "El reformador", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4201586, 16.3349822, 0.0 ], [ -89.4208203, 16.3346582, 0.0 ], [ -89.4208366, 16.332828, 0.0 ], [ -89.419324, 16.3328276, 0.0 ], [ -89.4189482, 16.3325963, 0.0 ], [ -89.4159895, 16.3355634, 0.0 ], [ -89.4173586, 16.3368303, 0.0 ], [ -89.4201586, 16.3349822, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "El Porvenir", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4208834, 16.3347029, 0.0 ], [ -89.4203089, 16.3349424, 0.0 ], [ -89.4225827, 16.3382605, 0.0 ], [ -89.4250853, 16.3366236, 0.0 ], [ -89.4237657, 16.3336103, 0.0 ], [ -89.4232704, 16.3327021, 0.0 ], [ -89.4208487, 16.332826, 0.0 ], [ -89.4208834, 16.3347029, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Las Joyas", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4252046, 16.3367567, 0.0 ], [ -89.4263136, 16.338282, 0.0 ], [ -89.4275953, 16.3375001, 0.0 ], [ -89.4279205, 16.336996, 0.0 ], [ -89.4278348, 16.336543, 0.0 ], [ -89.4264439, 16.3360402, 0.0 ], [ -89.4255169, 16.3330272, 0.0 ], [ -89.423896, 16.3335687, 0.0 ], [ -89.4252046, 16.3367567, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Junuguitz", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4262571, 16.3382453, 0.0 ], [ -89.4300747, 16.3430415, 0.0 ], [ -89.4298356, 16.3433678, 0.0 ], [ -89.4299479, 16.3434161, 0.0 ], [ -89.4306472, 16.3443985, 0.0 ], [ -89.4313526, 16.3441379, 0.0 ], [ -89.4324651, 16.3437487, 0.0 ], [ -89.4330508, 16.3418747, 0.0 ], [ -89.4330897, 16.3415418, 0.0 ], [ -89.4306395, 16.3411361, 0.0 ], [ -89.4323271, 16.3397514, 0.0 ], [ -89.4346106, 16.3396148, 0.0 ], [ -89.4383332, 16.3419039, 0.0 ], [ -89.4387733, 16.3407692, 0.0 ], [ -89.4387257, 16.3398794, 0.0 ], [ -89.436248, 16.3383395, 0.0 ], [ -89.4337832, 16.3383978, 0.0 ], [ -89.4339065, 16.3396259, 0.0 ], [ -89.4326771, 16.3397514, 0.0 ], [ -89.4322505, 16.3385185, 0.0 ], [ -89.4306792, 16.3382153, 0.0 ], [ -89.430026, 16.3380883, 0.0 ], [ -89.4293455, 16.3375491, 0.0 ], [ -89.428875, 16.3367991, 0.0 ], [ -89.4279053, 16.3366289, 0.0 ], [ -89.4280513, 16.3370864, 0.0 ], [ -89.4276098, 16.337605, 0.0 ], [ -89.4262571, 16.3382453, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "El Porvenir", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4295893, 16.3496585, 0.0 ], [ -89.4282698, 16.347947, 0.0 ], [ -89.4307831, 16.3463607, 0.0 ], [ -89.4317237, 16.3467769, 0.0 ], [ -89.4333389, 16.3439078, 0.0 ], [ -89.4325299, 16.3438494, 0.0 ], [ -89.4305896, 16.3443348, 0.0 ], [ -89.4298423, 16.343362, 0.0 ], [ -89.4300236, 16.3429999, 0.0 ], [ -89.4251215, 16.3366732, 0.0 ], [ -89.4162202, 16.3424116, 0.0 ], [ -89.4238475, 16.3533012, 0.0 ], [ -89.4295893, 16.3496585, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Lourdes", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4364247, 16.3275719, 0.0 ], [ -89.438602, 16.3256786, 0.0 ], [ -89.4394427, 16.3266004, 0.0 ], [ -89.4402028, 16.3264434, 0.0 ], [ -89.4406431, 16.3271092, 0.0 ], [ -89.4441306, 16.3259367, 0.0 ], [ -89.4447834, 16.3267324, 0.0 ], [ -89.4456249, 16.3265924, 0.0 ], [ -89.4453416, 16.3256617, 0.0 ], [ -89.4466965, 16.3251235, 0.0 ], [ -89.4459874, 16.3220043, 0.0 ], [ -89.4460825, 16.3204519, 0.0 ], [ -89.4453124, 16.3203945, 0.0 ], [ -89.4438933, 16.3207036, 0.0 ], [ -89.4408458, 16.3217552, 0.0 ], [ -89.4389215, 16.3225072, 0.0 ], [ -89.4369547, 16.3228819, 0.0 ], [ -89.4362812, 16.3231887, 0.0 ], [ -89.4366705, 16.3241265, 0.0 ], [ -89.4364755, 16.3243956, 0.0 ], [ -89.4361755, 16.3245498, 0.0 ], [ -89.4359797, 16.3247618, 0.0 ], [ -89.4358131, 16.3249718, 0.0 ], [ -89.435602, 16.3249684, 0.0 ], [ -89.4364247, 16.3275719, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Don Poch", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4338816, 16.3397333, 0.0 ], [ -89.4323056, 16.3397343, 0.0 ], [ -89.4322388, 16.3398562, 0.0 ], [ -89.4306807, 16.3411129, 0.0 ], [ -89.4330185, 16.3415044, 0.0 ], [ -89.4330295, 16.3415122, 0.0 ], [ -89.4334904, 16.3418836, 0.0 ], [ -89.4345762, 16.3424599, 0.0 ], [ -89.44194, 16.3468614, 0.0 ], [ -89.443736, 16.346181, 0.0 ], [ -89.4429347, 16.3459717, 0.0 ], [ -89.4443403, 16.3438538, 0.0 ], [ -89.4426696, 16.3428137, 0.0 ], [ -89.4417015, 16.3423722, 0.0 ], [ -89.4414244, 16.3418953, 0.0 ], [ -89.4401337, 16.3429638, 0.0 ], [ -89.4350044, 16.339915, 0.0 ], [ -89.4347118, 16.3396323, 0.0 ], [ -89.4338816, 16.3397333, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Lotificasion La Gloria", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4339444, 16.3396316, 0.0 ], [ -89.4336537, 16.337643, 0.0 ], [ -89.4325128, 16.3375007, 0.0 ], [ -89.4323025, 16.3384773, 0.0 ], [ -89.4327057, 16.3397416, 0.0 ], [ -89.4339444, 16.3396316, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Santa maria", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4386149, 16.3398235, 0.0 ], [ -89.4390301, 16.3392612, 0.0 ], [ -89.437907, 16.3361309, 0.0 ], [ -89.4394127, 16.335786, 0.0 ], [ -89.4392167, 16.3303817, 0.0 ], [ -89.4373159, 16.3300064, 0.0 ], [ -89.4365377, 16.3275842, 0.0 ], [ -89.435648, 16.3250311, 0.0 ], [ -89.4341657, 16.3274321, 0.0 ], [ -89.430571, 16.3284401, 0.0 ], [ -89.4305054, 16.3281431, 0.0 ], [ -89.4304212, 16.3264435, 0.0 ], [ -89.430367, 16.3258585, 0.0 ], [ -89.4274034, 16.326095, 0.0 ], [ -89.4237241, 16.3264429, 0.0 ], [ -89.4264557, 16.3360024, 0.0 ], [ -89.4289194, 16.3368644, 0.0 ], [ -89.4292736, 16.3375186, 0.0 ], [ -89.4300764, 16.3381535, 0.0 ], [ -89.4322765, 16.3384926, 0.0 ], [ -89.4324979, 16.3374799, 0.0 ], [ -89.4335804, 16.3375312, 0.0 ], [ -89.4336792, 16.3382741, 0.0 ], [ -89.4361046, 16.3383171, 0.0 ], [ -89.4386149, 16.3398235, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Los Pinos", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4557292, 16.3393886, 0.0 ], [ -89.4611839, 16.3419623, 0.0 ], [ -89.4641529, 16.3371566, 0.0 ], [ -89.462796, 16.3365255, 0.0 ], [ -89.4626341, 16.3367294, 0.0 ], [ -89.4589111, 16.3347662, 0.0 ], [ -89.4583834, 16.3344504, 0.0 ], [ -89.4535548, 16.3317823, 0.0 ], [ -89.4520889, 16.3320469, 0.0 ], [ -89.4515425, 16.3326365, 0.0 ], [ -89.4515578, 16.3358532, 0.0 ], [ -89.4529814, 16.3365447, 0.0 ], [ -89.4536353, 16.3353312, 0.0 ], [ -89.4556693, 16.3348859, 0.0 ], [ -89.4561739, 16.3338589, 0.0 ], [ -89.4572615, 16.3346963, 0.0 ], [ -89.4568993, 16.3359165, 0.0 ], [ -89.457105, 16.3362079, 0.0 ], [ -89.4556654, 16.3380292, 0.0 ], [ -89.4557292, 16.3393886, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Los Pinos", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4610725, 16.3420166, 0.0 ], [ -89.4596639, 16.3415386, 0.0 ], [ -89.4596819, 16.3423086, 0.0 ], [ -89.4585868, 16.3435949, 0.0 ], [ -89.4574478, 16.3445248, 0.0 ], [ -89.4556877, 16.3457435, 0.0 ], [ -89.4544794, 16.3456692, 0.0 ], [ -89.4524107, 16.346397, 0.0 ], [ -89.4515061, 16.3448044, 0.0 ], [ -89.4489001, 16.3474109, 0.0 ], [ -89.4490398, 16.348, 0.0 ], [ -89.4604892, 16.3480811, 0.0 ], [ -89.4625291, 16.3485012, 0.0 ], [ -89.4645807, 16.3484206, 0.0 ], [ -89.4660068, 16.3452629, 0.0 ], [ -89.4659064, 16.3426438, 0.0 ], [ -89.4659041, 16.3425866, 0.0 ], [ -89.4661184, 16.3407986, 0.0 ], [ -89.4655538, 16.339916, 0.0 ], [ -89.4657302, 16.3379188, 0.0 ], [ -89.4643036, 16.3371576, 0.0 ], [ -89.4610725, 16.3420166, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Bario Nuevo", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4393593, 16.3320754, 0.0 ], [ -89.4424615, 16.3325655, 0.0 ], [ -89.4466869, 16.3330505, 0.0 ], [ -89.4510402, 16.3325458, 0.0 ], [ -89.4516103, 16.3325384, 0.0 ], [ -89.4519806, 16.3319035, 0.0 ], [ -89.4498667, 16.3297137, 0.0 ], [ -89.4479385, 16.3293196, 0.0 ], [ -89.4475262, 16.3284059, 0.0 ], [ -89.4478662, 16.3270023, 0.0 ], [ -89.4477767, 16.3257967, 0.0 ], [ -89.4487022, 16.3249917, 0.0 ], [ -89.449392, 16.3243004, 0.0 ], [ -89.4481507, 16.3218219, 0.0 ], [ -89.4471285, 16.3215637, 0.0 ], [ -89.4460327, 16.3218206, 0.0 ], [ -89.4466453, 16.3251265, 0.0 ], [ -89.445331, 16.3257485, 0.0 ], [ -89.4454545, 16.3263991, 0.0 ], [ -89.4448562, 16.329145, 0.0 ], [ -89.4432503, 16.3295752, 0.0 ], [ -89.4425205, 16.3294807, 0.0 ], [ -89.4423702, 16.3304072, 0.0 ], [ -89.4390092, 16.3303348, 0.0 ], [ -89.4393593, 16.3320754, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Lotificasion Los  Olivos", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4460842, 16.3218621, 0.0 ], [ -89.4477139, 16.3216285, 0.0 ], [ -89.4482382, 16.3216374, 0.0 ], [ -89.4485208, 16.3217519, 0.0 ], [ -89.4488547, 16.3216507, 0.0 ], [ -89.4486905, 16.3210688, 0.0 ], [ -89.4488016, 16.3200552, 0.0 ], [ -89.448314, 16.3209013, 0.0 ], [ -89.4474741, 16.319817, 0.0 ], [ -89.4460997, 16.3203247, 0.0 ], [ -89.4460842, 16.3218621, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "La Bendicion", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4361567, 16.3228987, 0.0 ], [ -89.4364673, 16.3229835, 0.0 ], [ -89.4390901, 16.3223866, 0.0 ], [ -89.4436906, 16.3206894, 0.0 ], [ -89.4453364, 16.3203708, 0.0 ], [ -89.4446858, 16.317715, 0.0 ], [ -89.4432969, 16.3179244, 0.0 ], [ -89.4429272, 16.3170133, 0.0 ], [ -89.442039, 16.3171923, 0.0 ], [ -89.4416285, 16.3167315, 0.0 ], [ -89.4409756, 16.3159882, 0.0 ], [ -89.4392443, 16.3160387, 0.0 ], [ -89.4386486, 16.3161408, 0.0 ], [ -89.438219, 16.3159834, 0.0 ], [ -89.4379695, 16.3171338, 0.0 ], [ -89.4371379, 16.3178463, 0.0 ], [ -89.4363536, 16.3190147, 0.0 ], [ -89.4360909, 16.3195998, 0.0 ], [ -89.4355593, 16.3203993, 0.0 ], [ -89.4357733, 16.3217478, 0.0 ], [ -89.4361567, 16.3228987, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Pioneros De La Paz", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4351006, 16.3172462, 0.0 ], [ -89.4349224, 16.3176304, 0.0 ], [ -89.4346178, 16.3148772, 0.0 ], [ -89.432756, 16.3149188, 0.0 ], [ -89.4326898, 16.3132684, 0.0 ], [ -89.431013, 16.3138552, 0.0 ], [ -89.4296349, 16.314155, 0.0 ], [ -89.4285653, 16.3147451, 0.0 ], [ -89.4275377, 16.3152002, 0.0 ], [ -89.4239661, 16.3153941, 0.0 ], [ -89.4243736, 16.3212028, 0.0 ], [ -89.4238198, 16.3211925, 0.0 ], [ -89.4228615, 16.3234703, 0.0 ], [ -89.4230151, 16.3251976, 0.0 ], [ -89.4285001, 16.3249015, 0.0 ], [ -89.4289169, 16.324704, 0.0 ], [ -89.429856, 16.3247599, 0.0 ], [ -89.4293551, 16.3258951, 0.0 ], [ -89.4302943, 16.3257854, 0.0 ], [ -89.4304267, 16.3258264, 0.0 ], [ -89.4306314, 16.3284344, 0.0 ], [ -89.4340554, 16.3274266, 0.0 ], [ -89.4355569, 16.325081, 0.0 ], [ -89.4358391, 16.3248024, 0.0 ], [ -89.4364292, 16.3244053, 0.0 ], [ -89.4366005, 16.3240434, 0.0 ], [ -89.4361543, 16.3228173, 0.0 ], [ -89.4357325, 16.3218088, 0.0 ], [ -89.435489, 16.3204998, 0.0 ], [ -89.4360417, 16.3196018, 0.0 ], [ -89.4362861, 16.3189646, 0.0 ], [ -89.4351006, 16.3172462, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Las Plantas", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.420741, 16.3253004, 0.0 ], [ -89.4230097, 16.3251567, 0.0 ], [ -89.4228795, 16.3237129, 0.0 ], [ -89.4228496, 16.3234691, 0.0 ], [ -89.4237476, 16.3212169, 0.0 ], [ -89.424324, 16.321166, 0.0 ], [ -89.423977, 16.3155396, 0.0 ], [ -89.4237603, 16.3145681, 0.0 ], [ -89.4231077, 16.3148471, 0.0 ], [ -89.4217781, 16.3169723, 0.0 ], [ -89.4198011, 16.3177076, 0.0 ], [ -89.4196644, 16.3167432, 0.0 ], [ -89.4202546, 16.3155827, 0.0 ], [ -89.4204421, 16.3145997, 0.0 ], [ -89.4211375, 16.3138493, 0.0 ], [ -89.4206353, 16.3130531, 0.0 ], [ -89.4193737, 16.3132898, 0.0 ], [ -89.4197305, 16.3090415, 0.0 ], [ -89.4173521, 16.3087778, 0.0 ], [ -89.4163347, 16.3087255, 0.0 ], [ -89.4147091, 16.3091758, 0.0 ], [ -89.4141926, 16.3134131, 0.0 ], [ -89.4136034, 16.3166551, 0.0 ], [ -89.416944, 16.3171783, 0.0 ], [ -89.4177429, 16.3170048, 0.0 ], [ -89.4179023, 16.317838, 0.0 ], [ -89.4180566, 16.3190942, 0.0 ], [ -89.4183721, 16.3199113, 0.0 ], [ -89.4187147, 16.3207554, 0.0 ], [ -89.4195072, 16.325406, 0.0 ], [ -89.420741, 16.3253004, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Bethel", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.435409, 16.3167725, 0.0 ], [ -89.4364073, 16.316687, 0.0 ], [ -89.4373608, 16.3158326, 0.0 ], [ -89.43803, 16.3157912, 0.0 ], [ -89.4387603, 16.3159353, 0.0 ], [ -89.4407617, 16.3157518, 0.0 ], [ -89.4412927, 16.3160716, 0.0 ], [ -89.4418324, 16.314519, 0.0 ], [ -89.4416584, 16.312945, 0.0 ], [ -89.4392646, 16.3131997, 0.0 ], [ -89.4391768, 16.311181, 0.0 ], [ -89.4363666, 16.3113206, 0.0 ], [ -89.436362, 16.313119, 0.0 ], [ -89.4342688, 16.3128741, 0.0 ], [ -89.4328948, 16.3132649, 0.0 ], [ -89.432308, 16.3121144, 0.0 ], [ -89.4292332, 16.3120397, 0.0 ], [ -89.4297175, 16.3104554, 0.0 ], [ -89.4224401, 16.310543, 0.0 ], [ -89.4224694, 16.3121723, 0.0 ], [ -89.4246709, 16.3138114, 0.0 ], [ -89.4239359, 16.3154464, 0.0 ], [ -89.4260356, 16.3153727, 0.0 ], [ -89.426431, 16.3151178, 0.0 ], [ -89.4269582, 16.3139912, 0.0 ], [ -89.4289005, 16.3126003, 0.0 ], [ -89.4291322, 16.3122044, 0.0 ], [ -89.4323207, 16.3122875, 0.0 ], [ -89.4326557, 16.3133523, 0.0 ], [ -89.4328583, 16.3148113, 0.0 ], [ -89.4346301, 16.3149234, 0.0 ], [ -89.4348611, 16.3175404, 0.0 ], [ -89.435409, 16.3167725, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Las Victorias", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4114491, 16.3162694, 0.0 ], [ -89.4122975, 16.3163057, 0.0 ], [ -89.412686, 16.3154737, 0.0 ], [ -89.4121513, 16.3152902, 0.0 ], [ -89.4121227, 16.3147759, 0.0 ], [ -89.4119377, 16.3147145, 0.0 ], [ -89.4119497, 16.3137079, 0.0 ], [ -89.412365, 16.3136754, 0.0 ], [ -89.4123839, 16.3136178, 0.0 ], [ -89.4123849, 16.3135592, 0.0 ], [ -89.4122879, 16.3133851, 0.0 ], [ -89.4120815, 16.3131825, 0.0 ], [ -89.4119459, 16.3132024, 0.0 ], [ -89.4119892, 16.3119059, 0.0 ], [ -89.4111262, 16.3122189, 0.0 ], [ -89.4101544, 16.3126406, 0.0 ], [ -89.4099066, 16.3130001, 0.0 ], [ -89.4097744, 16.3131733, 0.0 ], [ -89.4091272, 16.3131352, 0.0 ], [ -89.4090272, 16.3143124, 0.0 ], [ -89.4100299, 16.3150376, 0.0 ], [ -89.4103145, 16.3151042, 0.0 ], [ -89.411029, 16.3156228, 0.0 ], [ -89.4114491, 16.3162694, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "EL Rastro", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4090133, 16.3143334, 0.0 ], [ -89.4090804, 16.3131267, 0.0 ], [ -89.4097472, 16.3131197, 0.0 ], [ -89.4101404, 16.3126015, 0.0 ], [ -89.4080024, 16.3115021, 0.0 ], [ -89.4072469, 16.3114753, 0.0 ], [ -89.4070488, 16.3123101, 0.0 ], [ -89.4067159, 16.3122164, 0.0 ], [ -89.4066512, 16.3123957, 0.0 ], [ -89.4067383, 16.3128596, 0.0 ], [ -89.4069609, 16.3132344, 0.0 ], [ -89.407264, 16.3134486, 0.0 ], [ -89.4066797, 16.3153046, 0.0 ], [ -89.4062023, 16.3153838, 0.0 ], [ -89.4057246, 16.3148394, 0.0 ], [ -89.4052358, 16.3154432, 0.0 ], [ -89.4054858, 16.3158246, 0.0 ], [ -89.4061293, 16.3154532, 0.0 ], [ -89.4075877, 16.3152328, 0.0 ], [ -89.4088629, 16.3151035, 0.0 ], [ -89.4099986, 16.3151096, 0.0 ], [ -89.4090133, 16.3143334, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Evenecer", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4102415, 16.3126373, 0.0 ], [ -89.4123742, 16.3116965, 0.0 ], [ -89.4121322, 16.3109587, 0.0 ], [ -89.4116132, 16.3110515, 0.0 ], [ -89.4112032, 16.310672, 0.0 ], [ -89.4110179, 16.3096709, 0.0 ], [ -89.4110465, 16.3094223, 0.0 ], [ -89.4110396, 16.3093106, 0.0 ], [ -89.4103997, 16.3081824, 0.0 ], [ -89.4097737, 16.3083054, 0.0 ], [ -89.409418, 16.3085164, 0.0 ], [ -89.4090529, 16.3095543, 0.0 ], [ -89.4083706, 16.3100118, 0.0 ], [ -89.4079319, 16.3097654, 0.0 ], [ -89.4075001, 16.3096668, 0.0 ], [ -89.4072267, 16.3114592, 0.0 ], [ -89.4080451, 16.3114636, 0.0 ], [ -89.4102415, 16.3126373, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Colonia El Milagro", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4214752, 16.3130316, 0.0 ], [ -89.4225909, 16.3123806, 0.0 ], [ -89.4225246, 16.3122003, 0.0 ], [ -89.422432, 16.3121171, 0.0 ], [ -89.4224181, 16.3107294, 0.0 ], [ -89.4223338, 16.3107421, 0.0 ], [ -89.4221116, 16.3106029, 0.0 ], [ -89.4202573, 16.3108003, 0.0 ], [ -89.4202019, 16.3111279, 0.0 ], [ -89.4201952, 16.3118401, 0.0 ], [ -89.4204533, 16.3127082, 0.0 ], [ -89.4207913, 16.3131989, 0.0 ], [ -89.4214752, 16.3130316, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Barrio Ixobel", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4067806, 16.3170094, 0.0 ], [ -89.4068164, 16.3175329, 0.0 ], [ -89.4073505, 16.3175588, 0.0 ], [ -89.4077178, 16.317806, 0.0 ], [ -89.4090461, 16.3191525, 0.0 ], [ -89.4092556, 16.3199169, 0.0 ], [ -89.4096883, 16.3242386, 0.0 ], [ -89.4096193, 16.324339, 0.0 ], [ -89.4094464, 16.3248216, 0.0 ], [ -89.4122845, 16.3256629, 0.0 ], [ -89.4195255, 16.3254782, 0.0 ], [ -89.4187101, 16.3208669, 0.0 ], [ -89.4186636, 16.3208034, 0.0 ], [ -89.4180728, 16.3190476, 0.0 ], [ -89.4176943, 16.3170129, 0.0 ], [ -89.4169122, 16.3172038, 0.0 ], [ -89.4134678, 16.3166641, 0.0 ], [ -89.4137953, 16.31489, 0.0 ], [ -89.4144684, 16.3111193, 0.0 ], [ -89.4145649, 16.3094617, 0.0 ], [ -89.4136521, 16.3090118, 0.0 ], [ -89.4133595, 16.3081257, 0.0 ], [ -89.4130518, 16.3084725, 0.0 ], [ -89.4124147, 16.3085808, 0.0 ], [ -89.4121053, 16.3092314, 0.0 ], [ -89.4141998, 16.3110108, 0.0 ], [ -89.4134303, 16.3115893, 0.0 ], [ -89.4132209, 16.3126941, 0.0 ], [ -89.4134325, 16.3134824, 0.0 ], [ -89.4135958, 16.3140444, 0.0 ], [ -89.4130209, 16.3155058, 0.0 ], [ -89.4126739, 16.3155054, 0.0 ], [ -89.4123277, 16.31632, 0.0 ], [ -89.4115319, 16.3162912, 0.0 ], [ -89.4112468, 16.3161409, 0.0 ], [ -89.4106484, 16.3153917, 0.0 ], [ -89.4101777, 16.3151616, 0.0 ], [ -89.4100228, 16.315146, 0.0 ], [ -89.4092677, 16.3151235, 0.0 ], [ -89.408198, 16.3151976, 0.0 ], [ -89.4067243, 16.3153897, 0.0 ], [ -89.4050201, 16.3159901, 0.0 ], [ -89.4043059, 16.316784, 0.0 ], [ -89.4044812, 16.3170339, 0.0 ], [ -89.4067806, 16.3170094, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Los Gorriones", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4054378, 16.3158133, 0.0 ], [ -89.4051867, 16.3151345, 0.0 ], [ -89.4028889, 16.3100615, 0.0 ], [ -89.4023217, 16.3089178, 0.0 ], [ -89.4011595, 16.3070307, 0.0 ], [ -89.3998209, 16.3061224, 0.0 ], [ -89.3992134, 16.3056652, 0.0 ], [ -89.3967844, 16.306214, 0.0 ], [ -89.3962394, 16.305834, 0.0 ], [ -89.3962099, 16.306871, 0.0 ], [ -89.3952485, 16.3070055, 0.0 ], [ -89.3944654, 16.3075471, 0.0 ], [ -89.3944621, 16.3082247, 0.0 ], [ -89.3945825, 16.3088389, 0.0 ], [ -89.3940831, 16.3091014, 0.0 ], [ -89.3937248, 16.309009, 0.0 ], [ -89.3934351, 16.3086378, 0.0 ], [ -89.3933743, 16.3079686, 0.0 ], [ -89.3933451, 16.3074522, 0.0 ], [ -89.3933382, 16.3074411, 0.0 ], [ -89.3930497, 16.3069061, 0.0 ], [ -89.3926087, 16.306894, 0.0 ], [ -89.3926011, 16.3068612, 0.0 ], [ -89.3923343, 16.3067045, 0.0 ], [ -89.3909367, 16.3066935, 0.0 ], [ -89.3908044, 16.3068279, 0.0 ], [ -89.3913445, 16.3077049, 0.0 ], [ -89.3913154, 16.3086327, 0.0 ], [ -89.3916255, 16.3099036, 0.0 ], [ -89.394035, 16.3099092, 0.0 ], [ -89.3952146, 16.3095449, 0.0 ], [ -89.3958353, 16.3093188, 0.0 ], [ -89.3964831, 16.3076135, 0.0 ], [ -89.3968936, 16.3073756, 0.0 ], [ -89.396931, 16.3078881, 0.0 ], [ -89.3965166, 16.3091166, 0.0 ], [ -89.3974194, 16.3089339, 0.0 ], [ -89.3975234, 16.3084293, 0.0 ], [ -89.3982156, 16.3079756, 0.0 ], [ -89.3985505, 16.3070939, 0.0 ], [ -89.3988565, 16.3066444, 0.0 ], [ -89.3994596, 16.3065294, 0.0 ], [ -89.3996436, 16.3068861, 0.0 ], [ -89.3992299, 16.3075982, 0.0 ], [ -89.3988161, 16.3078038, 0.0 ], [ -89.3984543, 16.3080849, 0.0 ], [ -89.3983869, 16.3086141, 0.0 ], [ -89.3984649, 16.3092296, 0.0 ], [ -89.3986434, 16.3099331, 0.0 ], [ -89.3990895, 16.3097744, 0.0 ], [ -89.3993292, 16.3089489, 0.0 ], [ -89.3999573, 16.3083284, 0.0 ], [ -89.400139, 16.3077732, 0.0 ], [ -89.4004195, 16.3075484, 0.0 ], [ -89.4007379, 16.3079344, 0.0 ], [ -89.401086, 16.3090001, 0.0 ], [ -89.400926, 16.3096466, 0.0 ], [ -89.4005452, 16.3101795, 0.0 ], [ -89.4002359, 16.310427, 0.0 ], [ -89.39961, 16.3106395, 0.0 ], [ -89.4001001, 16.3120235, 0.0 ], [ -89.4008183, 16.3116226, 0.0 ], [ -89.4017694, 16.3117282, 0.0 ], [ -89.4020781, 16.3124119, 0.0 ], [ -89.4016989, 16.3132041, 0.0 ], [ -89.4014147, 16.3134664, 0.0 ], [ -89.4017257, 16.3162232, 0.0 ], [ -89.4054378, 16.3158133, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "La Cachoch", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4016808, 16.3162261, 0.0 ], [ -89.4013546, 16.3135396, 0.0 ], [ -89.400805, 16.3136279, 0.0 ], [ -89.4003649, 16.3134785, 0.0 ], [ -89.4001897, 16.3134425, 0.0 ], [ -89.4000494, 16.3120183, 0.0 ], [ -89.3996494, 16.3106619, 0.0 ], [ -89.3989342, 16.3108908, 0.0 ], [ -89.398669, 16.3098403, 0.0 ], [ -89.3984848, 16.3094599, 0.0 ], [ -89.3965815, 16.3096685, 0.0 ], [ -89.3939315, 16.3102256, 0.0 ], [ -89.3930496, 16.3107091, 0.0 ], [ -89.3931746, 16.3112737, 0.0 ], [ -89.3925945, 16.3115296, 0.0 ], [ -89.3920839, 16.3118996, 0.0 ], [ -89.3935803, 16.3144728, 0.0 ], [ -89.3953803, 16.3154186, 0.0 ], [ -89.3971129, 16.3169511, 0.0 ], [ -89.4016808, 16.3162261, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Morazan", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4017348, 16.3180544, 0.0 ], [ -89.4019805, 16.317933, 0.0 ], [ -89.4021532, 16.3176222, 0.0 ], [ -89.4024029, 16.3171866, 0.0 ], [ -89.4028747, 16.3169213, 0.0 ], [ -89.4035648, 16.3166783, 0.0 ], [ -89.4042357, 16.3167692, 0.0 ], [ -89.4049858, 16.316015, 0.0 ], [ -89.4053807, 16.3158272, 0.0 ], [ -89.4017397, 16.3162368, 0.0 ], [ -89.3993846, 16.316612, 0.0 ], [ -89.398636, 16.3166569, 0.0 ], [ -89.3970559, 16.3170056, 0.0 ], [ -89.3980662, 16.3178665, 0.0 ], [ -89.3981882, 16.3180932, 0.0 ], [ -89.3983883, 16.3188568, 0.0 ], [ -89.3985436, 16.3192578, 0.0 ], [ -89.3983149, 16.3201361, 0.0 ], [ -89.3981705, 16.3210364, 0.0 ], [ -89.3988612, 16.3214188, 0.0 ], [ -89.3997487, 16.3205621, 0.0 ], [ -89.4005486, 16.3213746, 0.0 ], [ -89.4017885, 16.3231563, 0.0 ], [ -89.4020351, 16.3228684, 0.0 ], [ -89.4019496, 16.32262, 0.0 ], [ -89.401888, 16.3223243, 0.0 ], [ -89.4020065, 16.3214953, 0.0 ], [ -89.4018804, 16.3208218, 0.0 ], [ -89.4017298, 16.3207414, 0.0 ], [ -89.4017983, 16.320272, 0.0 ], [ -89.4017348, 16.3180544, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "la Amistad", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4089074, 16.3249345, 0.0 ], [ -89.4096908, 16.3243082, 0.0 ], [ -89.4092826, 16.3199624, 0.0 ], [ -89.4091179, 16.3193291, 0.0 ], [ -89.4085694, 16.3186321, 0.0 ], [ -89.4077371, 16.3177003, 0.0 ], [ -89.4068208, 16.3175637, 0.0 ], [ -89.4067498, 16.3170358, 0.0 ], [ -89.4045172, 16.3170805, 0.0 ], [ -89.4042466, 16.316797, 0.0 ], [ -89.403541, 16.3167354, 0.0 ], [ -89.4030816, 16.3168716, 0.0 ], [ -89.4023636, 16.3172231, 0.0 ], [ -89.4020464, 16.3179204, 0.0 ], [ -89.4017889, 16.3180316, 0.0 ], [ -89.4017348, 16.3198863, 0.0 ], [ -89.4018168, 16.3202311, 0.0 ], [ -89.4021842, 16.3204212, 0.0 ], [ -89.4032236, 16.3200291, 0.0 ], [ -89.4032981, 16.3194308, 0.0 ], [ -89.4039395, 16.3193125, 0.0 ], [ -89.4039746, 16.3193431, 0.0 ], [ -89.4041484, 16.3199986, 0.0 ], [ -89.4041002, 16.3207711, 0.0 ], [ -89.4037545, 16.3214675, 0.0 ], [ -89.4028896, 16.322332, 0.0 ], [ -89.4020654, 16.3228657, 0.0 ], [ -89.4017913, 16.3231335, 0.0 ], [ -89.4027629, 16.3247678, 0.0 ], [ -89.4024306, 16.3255291, 0.0 ], [ -89.4039499, 16.3257553, 0.0 ], [ -89.4089074, 16.3249345, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Lotificasion Santa fe", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4008777, 16.3219315, 0.0 ], [ -89.400779, 16.3219319, 0.0 ], [ -89.4002687, 16.3220821, 0.0 ], [ -89.4000127, 16.322142, 0.0 ], [ -89.3998239, 16.3222985, 0.0 ], [ -89.3991939, 16.3221941, 0.0 ], [ -89.3991826, 16.3224109, 0.0 ], [ -89.3991389, 16.3232132, 0.0 ], [ -89.4016283, 16.3228974, 0.0 ], [ -89.4008777, 16.3219315, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "santa Fe", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4015957, 16.3228812, 0.0 ], [ -89.3991675, 16.3231986, 0.0 ], [ -89.3968365, 16.3235983, 0.0 ], [ -89.395216, 16.329512, 0.0 ], [ -89.4028896, 16.3306625, 0.0 ], [ -89.4028604, 16.3317371, 0.0 ], [ -89.403127, 16.3322815, 0.0 ], [ -89.4044116, 16.3322387, 0.0 ], [ -89.4051365, 16.3319465, 0.0 ], [ -89.4054647, 16.3311319, 0.0 ], [ -89.4079413, 16.3312223, 0.0 ], [ -89.4080678, 16.3318745, 0.0 ], [ -89.4098643, 16.3319152, 0.0 ], [ -89.4104839, 16.332607, 0.0 ], [ -89.4108226, 16.332977, 0.0 ], [ -89.4112446, 16.3334025, 0.0 ], [ -89.4114219, 16.3338974, 0.0 ], [ -89.4117587, 16.3340157, 0.0 ], [ -89.4117457, 16.3337543, 0.0 ], [ -89.4087924, 16.3278883, 0.0 ], [ -89.4086626, 16.3278508, 0.0 ], [ -89.4084799, 16.3286383, 0.0 ], [ -89.4064012, 16.3286152, 0.0 ], [ -89.4062606, 16.3276989, 0.0 ], [ -89.4045535, 16.3277599, 0.0 ], [ -89.4040451, 16.3276065, 0.0 ], [ -89.4034713, 16.3273036, 0.0 ], [ -89.403433, 16.3267619, 0.0 ], [ -89.4035568, 16.3262034, 0.0 ], [ -89.4039498, 16.325731, 0.0 ], [ -89.4024056, 16.3255658, 0.0 ], [ -89.4026703, 16.3246985, 0.0 ], [ -89.4022307, 16.3239371, 0.0 ], [ -89.4015957, 16.3228812, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Nuevo Amanecer", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.3968189, 16.3234684, 0.0 ], [ -89.396906, 16.3228476, 0.0 ], [ -89.3956204, 16.3228472, 0.0 ], [ -89.395432, 16.3233267, 0.0 ], [ -89.3948576, 16.3241472, 0.0 ], [ -89.3954746, 16.3246484, 0.0 ], [ -89.3951754, 16.325173, 0.0 ], [ -89.3943451, 16.3247261, 0.0 ], [ -89.3908024, 16.3242153, 0.0 ], [ -89.3887454, 16.3239742, 0.0 ], [ -89.3866519, 16.3232211, 0.0 ], [ -89.3826369, 16.3214532, 0.0 ], [ -89.3811518, 16.3209796, 0.0 ], [ -89.3793453, 16.3206452, 0.0 ], [ -89.3798112, 16.3215808, 0.0 ], [ -89.3797215, 16.3222662, 0.0 ], [ -89.3794584, 16.322694, 0.0 ], [ -89.38003, 16.3231675, 0.0 ], [ -89.3810342, 16.3236424, 0.0 ], [ -89.3814142, 16.3250137, 0.0 ], [ -89.3811902, 16.3266653, 0.0 ], [ -89.3815588, 16.3273802, 0.0 ], [ -89.3826319, 16.3275174, 0.0 ], [ -89.3833975, 16.3275548, 0.0 ], [ -89.3842899, 16.3278024, 0.0 ], [ -89.3863146, 16.328338, 0.0 ], [ -89.3875696, 16.3283768, 0.0 ], [ -89.3892017, 16.3279533, 0.0 ], [ -89.3903457, 16.327741, 0.0 ], [ -89.3910756, 16.3280921, 0.0 ], [ -89.3924933, 16.3289214, 0.0 ], [ -89.3951252, 16.3294577, 0.0 ], [ -89.3968189, 16.3234684, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Metro Plaza", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4084254, 16.3286253, 0.0 ], [ -89.4085658, 16.3277515, 0.0 ], [ -89.4081454, 16.3276435, 0.0 ], [ -89.4076419, 16.3276194, 0.0 ], [ -89.4070532, 16.32765, 0.0 ], [ -89.407044, 16.3276523, 0.0 ], [ -89.4070349, 16.3276545, 0.0 ], [ -89.4063133, 16.3277032, 0.0 ], [ -89.4064083, 16.3286094, 0.0 ], [ -89.4084254, 16.3286253, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Polígono sin título", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4236839, 16.3264307, 0.0 ], [ -89.4215821, 16.3266769, 0.0 ], [ -89.4220813, 16.3294431, 0.0 ], [ -89.4244335, 16.3292282, 0.0 ], [ -89.4236839, 16.3264307, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Barrio el centro", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4202443, 16.3305093, 0.0 ], [ -89.4202014, 16.3310039, 0.0 ], [ -89.4200973, 16.3312795, 0.0 ], [ -89.4199424, 16.3315282, 0.0 ], [ -89.4197991, 16.3316782, 0.0 ], [ -89.4192771, 16.3322197, 0.0 ], [ -89.4189935, 16.3325835, 0.0 ], [ -89.4193682, 16.3328161, 0.0 ], [ -89.4231938, 16.3327111, 0.0 ], [ -89.4233161, 16.3326152, 0.0 ], [ -89.4238673, 16.3335845, 0.0 ], [ -89.4254632, 16.3329655, 0.0 ], [ -89.4244306, 16.3292289, 0.0 ], [ -89.4221723, 16.3294663, 0.0 ], [ -89.4220546, 16.3294964, 0.0 ], [ -89.4214821, 16.3264448, 0.0 ], [ -89.4200207, 16.3265558, 0.0 ], [ -89.4202443, 16.3305093, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "El Bosque", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4116327, 16.3334188, 0.0 ], [ -89.4131498, 16.3328757, 0.0 ], [ -89.4137926, 16.3325839, 0.0 ], [ -89.4142496, 16.3271366, 0.0 ], [ -89.4089899, 16.3275405, 0.0 ], [ -89.4088952, 16.3277259, 0.0 ], [ -89.4116327, 16.3334188, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "La pista", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.42014, 16.3288491, 0.0 ], [ -89.4199662, 16.3267036, 0.0 ], [ -89.4143063, 16.3270102, 0.0 ], [ -89.4141833, 16.3287201, 0.0 ], [ -89.42014, 16.3288491, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Las  Cruces", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.415248, 16.3361002, 0.0 ], [ -89.4159193, 16.3353394, 0.0 ], [ -89.4200115, 16.331438, 0.0 ], [ -89.4201892, 16.3305908, 0.0 ], [ -89.4201336, 16.3288249, 0.0 ], [ -89.4141741, 16.3287462, 0.0 ], [ -89.413813, 16.3326616, 0.0 ], [ -89.4116638, 16.3335287, 0.0 ], [ -89.4142903, 16.3376543, 0.0 ], [ -89.415248, 16.3361002, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Finca Ixobel", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4237533, 16.3060906, 0.0 ], [ -89.4235374, 16.3025957, 0.0 ], [ -89.4199922, 16.3022243, 0.0 ], [ -89.4194699, 16.3022132, 0.0 ], [ -89.4190925, 16.3053461, 0.0 ], [ -89.4237533, 16.3060906, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Machaquila", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.4518377, 16.3794436, 0.0 ], [ -89.4505972, 16.379623, 0.0 ], [ -89.4458406, 16.3759181, 0.0 ], [ -89.446932, 16.3727418, 0.0 ], [ -89.4466448, 16.3717276, 0.0 ], [ -89.4439585, 16.3726213, 0.0 ], [ -89.4426678, 16.3710998, 0.0 ], [ -89.4415412, 16.371896, 0.0 ], [ -89.4414414, 16.3718272, 0.0 ], [ -89.440597, 16.3705129, 0.0 ], [ -89.4397451, 16.3708244, 0.0 ], [ -89.4361739, 16.3688128, 0.0 ], [ -89.435699, 16.3736083, 0.0 ], [ -89.4344179, 16.3754341, 0.0 ], [ -89.4330426, 16.3756084, 0.0 ], [ -89.4331708, 16.3772184, 0.0 ], [ -89.4348254, 16.3780648, 0.0 ], [ -89.4364217, 16.3837341, 0.0 ], [ -89.4396283, 16.3836328, 0.0 ], [ -89.4389569, 16.3871918, 0.0 ], [ -89.4373696, 16.3886114, 0.0 ], [ -89.4335362, 16.3905848, 0.0 ], [ -89.436878, 16.3949308, 0.0 ], [ -89.4420086, 16.3954329, 0.0 ], [ -89.4459652, 16.3972075, 0.0 ], [ -89.4522583, 16.3970875, 0.0 ], [ -89.4540636, 16.3978617, 0.0 ], [ -89.4566223, 16.399394, 0.0 ], [ -89.4568696, 16.3994122, 0.0 ], [ -89.4577852, 16.3967818, 0.0 ], [ -89.4554695, 16.3938164, 0.0 ], [ -89.4559275, 16.3916562, 0.0 ], [ -89.4575575, 16.391278, 0.0 ], [ -89.460138, 16.392315, 0.0 ], [ -89.461768, 16.3929071, 0.0 ], [ -89.463073, 16.391308, 0.0 ], [ -89.4638131, 16.3886688, 0.0 ], [ -89.4635783, 16.3847861, 0.0 ], [ -89.4610334, 16.3838903, 0.0 ], [ -89.4594247, 16.3813733, 0.0 ], [ -89.4593151, 16.3813639, 0.0 ], [ -89.4572811, 16.3801982, 0.0 ], [ -89.4550367, 16.3799162, 0.0 ], [ -89.4533486, 16.3800684, 0.0 ], [ -89.4518377, 16.3794436, 0.0 ] ] ] } },
++{ "type": "Feature", "properties": { "id": null, "Name": "Santa Cruz", "description": null, "timestamp": null, "begin": null, "end": null, "altitudeMode": null, "tessellate": 1, "extrude": 0, "visibility": -1, "drawOrder": null, "icon": null }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -89.3933337, 16.2845115, 0.0 ], [ -89.3954763, 16.2835562, 0.0 ], [ -89.3946388, 16.2818594, 0.0 ], [ -89.3941038, 16.2813446, 0.0 ], [ -89.3926521, 16.2822161, 0.0 ], [ -89.391999, 16.2831343, 0.0 ], [ -89.391775, 16.283342, 0.0 ], [ -89.3910699, 16.2833431, 0.0 ], [ -89.3911632, 16.2841974, 0.0 ], [ -89.3926994, 16.2845748, 0.0 ], [ -89.3933337, 16.2845115, 0.0 ] ] ] } }
++]
++}

@@ -6,28 +6,148 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let marcador = L.marker([16.331, -89.416], { draggable: true }).addTo(mapa);
 
+let barriosGeojson = null;
+
+async function cargarBarriosGeojson(){
+    if(barriosGeojson) return barriosGeojson;
+
+    const respuesta = await fetch(
+        "/assets/mapas/barrios_poptun.geojson"
+    );
+
+    if(!respuesta.ok){
+        throw new Error(
+            "No se pudo cargar barrios_poptun.geojson"
+        );
+    }
+
+    barriosGeojson = await respuesta.json();
+
+    return barriosGeojson;
+}
+
+function puntoEnAnillo(lng, lat, ring){
+    let dentro = false;
+
+    for(
+        let i = 0, j = ring.length - 1;
+        i < ring.length;
+        j = i++
+    ){
+        const xi = ring[i][0];
+        const yi = ring[i][1];
+        const xj = ring[j][0];
+        const yj = ring[j][1];
+
+        const intersecta =
+            ((yi > lat) !== (yj > lat)) &&
+            (
+                lng <
+                (xj - xi) * (lat - yi) /
+                ((yj - yi) || Number.EPSILON) +
+                xi
+            );
+
+        if(intersecta){
+            dentro = !dentro;
+        }
+    }
+
+    return dentro;
+}
+
+function puntoEnPoligono(lng, lat, geometry){
+    if(!geometry) return false;
+
+    if(geometry.type === "Polygon"){
+        const [exterior, ...huecos] =
+            geometry.coordinates;
+
+        if(!puntoEnAnillo(lng, lat, exterior)){
+            return false;
+        }
+
+        return !huecos.some(
+            hueco => puntoEnAnillo(lng, lat, hueco)
+        );
+    }
+
+    if(geometry.type === "MultiPolygon"){
+        return geometry.coordinates.some(poligono => {
+            const [exterior, ...huecos] = poligono;
+
+            if(!puntoEnAnillo(lng, lat, exterior)){
+                return false;
+            }
+
+            return !huecos.some(
+                hueco => puntoEnAnillo(lng, lat, hueco)
+            );
+        });
+    }
+
+    return false;
+}
+
+async function detectarBarrio(lat, lng){
+    const geojson = await cargarBarriosGeojson();
+
+    const feature = geojson.features.find(
+        f => puntoEnPoligono(
+            lng,
+            lat,
+            f.geometry
+        )
+    );
+
+    const nombre = String(
+        feature?.properties?.Name || ""
+    ).trim();
+
+    const inputBarrio =
+        document.getElementById("barrio");
+
+    const salida =
+        document.getElementById("barrioDetectado");
+
+    if(nombre){
+        inputBarrio.value = nombre;
+        salida.textContent = nombre;
+        return nombre;
+    }
+
+    inputBarrio.value = "";
+    salida.textContent = "Fuera de zona detectada";
+
+    return "";
+}
+
 function actualizarCoordenadas(latlng){
     document.getElementById("lat").value = latlng.lat;
     document.getElementById("lng").value = latlng.lng;
-}
 
-function archivoABase64(file){
-    return new Promise((resolve, reject)=>{
-        if(!file) return resolve("");
+    detectarBarrio(
+        Number(latlng.lat),
+        Number(latlng.lng)
+    ).catch(error => {
+        console.error(
+            "Error detectando barrio:",
+            error
+        );
 
-        const reader = new FileReader();
+        const salida =
+            document.getElementById("barrioDetectado");
 
-        reader.onload = () => {
-            const base64 = String(reader.result).split(",")[1];
-            resolve(base64);
-        };
-
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        if(salida){
+            salida.textContent =
+                "No se pudo detectar";
+        }
     });
 }
 
-actualizarCoordenadas(marcador.getLatLng());
+
+document.getElementById("barrioDetectado").textContent =
+    "Selecciona tu ubicación";
 
 marcador.on("dragend", () => {
     actualizarCoordenadas(marcador.getLatLng());
@@ -57,7 +177,7 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
 
     try{
         const firebaseService =
-            await import("/js/firebase-service.js?v=20260830-2");
+            await import("/js/firebase-service.js?v=20260830-3");
 
         console.log(
             "Exports firebase-service:",
@@ -87,18 +207,48 @@ document.getElementById("formSolicitud").addEventListener("submit", async (e) =>
                 );
         }
 
+        const lat =
+            document.getElementById("lat").value;
+
+        const lng =
+            document.getElementById("lng").value;
+
+        if(!lat || !lng){
+            throw new Error(
+                "Debe seleccionar la ubicación del servicio."
+            );
+        }
+
+        const barrio =
+            await detectarBarrio(
+                Number(lat),
+                Number(lng)
+            );
+
+        if(!barrio){
+            throw new Error(
+                "La ubicación seleccionada no pertenece a un barrio reconocido."
+            );
+        }
+
         const data = {
             idSolicitud,
-            nombreCompleto: document.getElementById("nombreCompleto").value.trim(),
-            telefono: document.getElementById("telefono").value.trim(),
-            correo: document.getElementById("correo").value.trim(),
-            tipoServicio: document.getElementById("tipoServicio").value,
-            barrio: document.getElementById("barrio").value.trim(),
-            direccion: document.getElementById("direccion").value.trim(),
-            referencia: document.getElementById("referencia").value.trim(),
-            lat: document.getElementById("lat").value,
-            lng: document.getElementById("lng").value,
-            observacion: document.getElementById("observacion").value.trim(),
+
+            nombreCompleto:
+                document.getElementById("nombreCompleto")
+                    .value.trim(),
+
+            telefono:
+                document.getElementById("telefono")
+                    .value.trim(),
+
+            tipoServicio:
+                document.getElementById("tipoServicio")
+                    .value,
+
+            barrio,
+            lat,
+            lng,
             fotoUrl
         };
 

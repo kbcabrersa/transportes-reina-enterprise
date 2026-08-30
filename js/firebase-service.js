@@ -67,11 +67,8 @@ export async function crearSolicitud(datos) {
 
     nombreCompleto: String(datos.nombreCompleto || "").trim(),
     telefono: String(datos.telefono || "").trim(),
-    correo: String(datos.correo || "").trim(),
 
-    direccion: String(datos.direccion || "").trim(),
     barrio: String(datos.barrio || "").trim(),
-    referencia: String(datos.referencia || "").trim(),
 
     tipoServicio: String(datos.tipoServicio || "").trim(),
 
@@ -82,7 +79,6 @@ export async function crearSolicitud(datos) {
     fotoUrl: String(datos.fotoUrl || ""),
 
     estado: "PENDIENTE",
-    observacion: String(datos.observacion || "").trim(),
 
     usuarioRevision: "",
     fechaRevision: "",

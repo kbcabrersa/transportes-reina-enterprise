@@ -22,7 +22,7 @@ async function cargarDatosEnterprise(){
             obtenerPagos,
             obtenerEventosOperativos,
             obtenerSolicitudes
-        } = await import("/js/firebase-service.js?v=20260830-2");
+        } = await import("/js/firebase-service.js?v=20260830-3");
 
         const [c, p, operativo, s] = await Promise.all([
             obtenerClientes(),
@@ -584,12 +584,8 @@ function abrirFichaSolicitud(s){
                     <p><strong>Fecha:</strong> ${formatearFecha(s.fechaSolicitud)}</p>
                     <p><strong>Nombre:</strong> ${s.nombreCompleto || ""}</p>
                     <p><strong>Teléfono:</strong> ${s.telefono || ""}</p>
-                    <p><strong>Correo:</strong> ${s.correo || ""}</p>
-                    <p><strong>Dirección:</strong> ${s.direccion || ""}</p>
                     <p><strong>Barrio:</strong> ${s.barrio || ""}</p>
-                    <p><strong>Referencia:</strong> ${s.referencia || ""}</p>
                     <p><strong>Tipo:</strong> ${s.tipoServicio || ""}</p>
-                    <p><strong>Observación:</strong> ${s.observacion || ""}</p>
                 </div>
 
                 <div class="info-box">
@@ -639,7 +635,7 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
     try{
         const {
             actualizarEstadoSolicitud
-        } = await import("/js/firebase-service.js?v=20260830-2");
+        } = await import("/js/firebase-service.js?v=20260830-3");
 
         const resultado = await actualizarEstadoSolicitud(
             solicitud,

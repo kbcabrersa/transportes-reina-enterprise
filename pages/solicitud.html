@@ -36,7 +36,6 @@
 
         <input type="text" id="nombreCompleto" placeholder="Nombre completo" required>
         <input type="tel" id="telefono" placeholder="Número de teléfono / WhatsApp" required>
-        <input type="email" id="correo" placeholder="Correo electrónico opcional">
 
         <select id="tipoServicio" required>
             <option value="">Tipo de servicio</option>
@@ -46,9 +45,6 @@
             <option value="Industrial">Industrial</option>
         </select>
 
-        <input type="text" id="barrio" placeholder="Barrio o comunidad" required>
-        <textarea id="direccion" placeholder="Dirección exacta" required></textarea>
-        <textarea id="referencia" placeholder="Punto de referencia" required></textarea>
 
         <label class="label-foto">
             Imagen de referencia del inmueble
@@ -64,10 +60,15 @@
 
         <div id="mapaSolicitud"></div>
 
+        <div id="barrioDetectadoBox" class="barrio-detectado-box">
+            <strong>Barrio detectado:</strong>
+            <span id="barrioDetectado">Sin detectar</span>
+        </div>
+
+        <input type="hidden" id="barrio">
         <input type="hidden" id="lat">
         <input type="hidden" id="lng">
 
-        <textarea id="observacion" placeholder="Observaciones adicionales"></textarea>
 
         <div class="terminos-box">
             <p>
