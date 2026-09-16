@@ -1762,3 +1762,19 @@ table{
 
 .btn-mini.verde{ background:var(--verde); color:white; }
 .btn-mini.rojo{ background:#dc2626; color:white; }
+
+/* MODULOS ENTERPRISE: CLIENTES, COBROS Y OPERATIVO */
+.tabla-scroll{overflow:auto;border-radius:16px}.tabla-scroll table{min-width:820px}
+.acciones-tabla{display:flex;gap:6px}.acciones-tabla .btn-mini{padding:7px 10px;font-size:12px}
+.metricas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:20px 0}
+.metrica-card{background:white;border-radius:14px;padding:18px;box-shadow:0 5px 16px rgba(15,23,42,.08);border-left:5px solid var(--verde)}
+.metrica-card span{display:block;color:#64748b;font-size:13px}.metrica-card strong{display:block;font-size:25px;margin-top:5px;color:var(--oscuro)}
+.ficha-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.ficha-tabs button.active{background:var(--oscuro)}
+.ficha-panel{display:none}.ficha-panel.active{display:block}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.form-grid label{display:grid;gap:6px;font-weight:700;color:#334155}.form-grid input,.form-grid select,.form-grid textarea{padding:11px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;background:white}
+.mapa-editor,.mapa-operativo{height:440px;border-radius:16px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 6px 20px rgba(15,23,42,.1)}
+.coordenadas-editor{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:12px}.coordenadas-editor input{padding:10px;border:1px solid #cbd5e1;border-radius:8px}
+.operativo-layout{display:grid;grid-template-columns:minmax(560px,1.2fr) minmax(360px,.8fr);gap:22px;align-items:start}.panel-operativo{min-width:0}
+.tabla-clientes-operativo{max-height:520px}.subtitulo{margin:28px 0 12px}.meses-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:16px 0}.mes-estado{padding:12px 6px;border-radius:10px;text-align:center;background:#e2e8f0}.mes-estado.pagado{background:#bbf7d0;color:#166534}.mes-estado.atrasado{background:#fecaca;color:#991b1b}.mes-estado.pendiente{background:#fef08a;color:#854d0e}
+@media(max-width:1050px){.operativo-layout{grid-template-columns:1fr}.enterprise-section{padding:24px 18px!important}.meses-grid{grid-template-columns:repeat(4,1fr)}}

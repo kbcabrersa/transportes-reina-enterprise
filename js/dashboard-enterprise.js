@@ -7,6 +7,13 @@ let eventos = [];
 let solicitudes = [];
 let atenciones = [];
 let noAtendidos = [];
+let jornadasOperativas = [];
+let firebaseEnterprise = {};
+let seleccionOperativa = new Set();
+let ordenOperativo = [];
+let mapaEdicion = null;
+let mapaOperacion = null;
+let capaOperacion = null;
 
 let paginaClientes = 1;
 const CLIENTES_POR_PAGINA = 20;
@@ -21,14 +28,25 @@ async function cargarDatosEnterprise(){
             obtenerClientes,
             obtenerPagos,
             obtenerEventosOperativos,
-            obtenerSolicitudes
-        } = await import("/js/firebase-service.js?v=20260830-4");
+            obtenerSolicitudes,
+            obtenerAsignacionesOperativas,
+            actualizarCliente,
+            registrarPagoManual,
+            guardarJornadaOperativa
+        } = await import("/js/firebase-service.js?v=20260916-1");
 
-        const [c, p, operativo, s] = await Promise.all([
+        firebaseEnterprise = {
+            actualizarCliente,
+            registrarPagoManual,
+            guardarJornadaOperativa
+        };
+
+        const [c, p, operativo, s, jornadas] = await Promise.all([
             obtenerClientes(),
             obtenerPagos(),
             obtenerEventosOperativos(),
-            obtenerSolicitudes()
+            obtenerSolicitudes(),
+            obtenerAsignacionesOperativas()
         ]);
 
         clientes = Array.isArray(c) ? c : [];
@@ -38,6 +56,7 @@ async function cargarDatosEnterprise(){
         eventos = Array.isArray(p) ? p : [];
 
         solicitudes = Array.isArray(s) ? s : [];
+        jornadasOperativas = Array.isArray(jornadas) ? jornadas : [];
 
         const operaciones = Array.isArray(operativo) ? operativo : [];
 
@@ -66,6 +85,8 @@ async function cargarDatosEnterprise(){
         renderDashboard();
         renderClientesPaginados(clientes);
         renderSolicitudes();
+        renderCobros();
+        prepararOperativo();
         registrarClickGraficas();
 
         console.info("Enterprise cargado desde Firebase", {
@@ -152,19 +173,30 @@ function renderClientesPaginados(lista){
     const pagina = lista.slice(inicio, inicio + CLIENTES_POR_PAGINA);
 
     if(pagina.length === 0){
-        tbody.innerHTML = `<tr><td colspan="5">Sin clientes para mostrar.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8">Sin clientes para mostrar.</td></tr>`;
     }
 
     pagina.forEach(c=>{
         const tr = document.createElement("tr");
+        const historialCliente = eventosCliente(c);
         tr.innerHTML = `
-            <td>${c.nombre || ""}</td>
-            <td>${c.ruta || ""}</td>
-            <td>${c.lugar || ""}</td>
+            <td>${escapeHTML(c.nombre || "")}</td>
+            <td>${escapeHTML(c.telefono || "")}</td>
+            <td>${escapeHTML(c.ruta || "")}</td>
+            <td>${escapeHTML(c.lugar || "")}</td>
+            <td>${ultimoEvento(historialCliente, "pago")}</td>
+            <td>${ultimoEvento(historialCliente, "atencion")}</td>
             <td>${activo(c) ? "Activo" : "Inactivo"}</td>
-            <td>${formatearFecha(c.updatedAt)}</td>
+            <td><div class="acciones-tabla">
+                <button class="btn-mini azul" data-accion="ver">Ver</button>
+                <button class="btn-mini naranja" data-accion="editar">Editar</button>
+                <button class="btn-mini verde" data-accion="pagar">Pago</button>
+            </div></td>
         `;
         tr.onclick = ()=>abrirPerfilCliente(c);
+        tr.querySelector('[data-accion="ver"]').onclick = ev => { ev.stopPropagation(); abrirPerfilCliente(c); };
+        tr.querySelector('[data-accion="editar"]').onclick = ev => { ev.stopPropagation(); abrirEditorCliente(c); };
+        tr.querySelector('[data-accion="pagar"]').onclick = ev => { ev.stopPropagation(); abrirPagoManual(c); };
         tbody.appendChild(tr);
     });
 
@@ -237,10 +269,7 @@ function renderSolicitudes(){
 }
 
 function abrirPerfilCliente(cliente){
-    const historial = eventos.filter(ev =>
-        String(ev.clienteId || "") === String(cliente.id || "") ||
-        String(ev.clienteNombre || "").toLowerCase() === String(cliente.nombre || "").toLowerCase()
-    );
+    const historial = eventosCliente(cliente);
 
     const foto =
         cliente.fotoUrl ||
@@ -267,6 +296,7 @@ function abrirPerfilCliente(cliente){
                 </div>
 
                 <button class="btn-mini naranja" onclick="window.print()">Exportar Ficha PDF</button>
+                <button class="btn-mini azul" onclick="abrirEditorClientePorId('${escapeAttr(cliente.id)}')">Editar cliente y ubicación</button>
             </div>
 
             <div class="resumen-cliente">
@@ -275,6 +305,8 @@ function abrirPerfilCliente(cliente){
                 <div><span>Última atención</span><strong>${ultimoEvento(historial, "atencion")}</strong></div>
                 <div><span>Servicio</span><strong>${cliente.tipoServicio || "Básico"} - Q${cliente.precio || "0"}</strong></div>
             </div>
+
+            ${renderMesesCliente(cliente, historial)}
 
             <div class="ficha-grid-pro">
                 <div class="info-box">
@@ -302,18 +334,19 @@ function abrirPerfilCliente(cliente){
             <div class="historial-cliente">
                 <h3>Historial de Eventos</h3>
                 <table>
-                    <thead><tr><th>Fecha y Hora</th><th>Qué hizo</th><th>Quién lo hizo</th></tr></thead>
+                    <thead><tr><th>Fecha y Hora</th><th>Tipo</th><th>Qué hizo</th><th>Quién lo hizo</th></tr></thead>
                     <tbody>
                         ${
                             historial.length
                             ? historial.slice(-8).reverse().map(ev => `
                                 <tr>
                                     <td>${formatearFecha(ev.fecha)}</td>
+                                    <td>${escapeHTML(categoriaEvento(ev))}</td>
                                     <td>${traducirEvento(ev.tipo)}</td>
                                     <td>${ev.usuario || "Sistema"}</td>
                                 </tr>
                             `).join("")
-                            : `<tr><td colspan="3">Este cliente aún no tiene historial registrado.</td></tr>`
+                            : `<tr><td colspan="4">Este cliente aún no tiene historial registrado.</td></tr>`
                         }
                     </tbody>
                 </table>
@@ -427,6 +460,7 @@ function activarTabs(){
             link.classList.add("activo");
             document.getElementById(tab)?.classList.add("active");
             window.location.hash = tab;
+            if(tab === "operativo") setTimeout(()=>mapaOperacion?.invalidateSize(), 80);
         });
     });
 }
@@ -472,8 +506,8 @@ function ultimoEvento(historial, tipo){
 }
 
 function fechaCorta(fecha){
-    if(!fecha) return "Sin registro";
-    return new Date(fecha).toLocaleDateString("es-GT");
+    const ms = fechaMs(fecha);
+    return ms ? new Date(ms).toLocaleDateString("es-GT") : "Sin registro";
 }
 
 function traducirEvento(tipo){
@@ -489,10 +523,10 @@ function activo(c){ return c.activo === true || c.activo === "true"; }
 function verdad(v){ return v===true || v==="true" || v==="TRUE" || v===1; }
 function esPago(e){ return String(e.tipo||"").toLowerCase().includes("pago"); }
 function sumaMonto(lista){ return lista.reduce((a,e)=>a+Number(e.monto||0),0); }
-function esMesActual(f){ const d=new Date(f); const h=new Date(); return d.getMonth()===h.getMonth() && d.getFullYear()===h.getFullYear(); }
-function mismoMes(f,m,a){ if(!f)return false; const d=new Date(f); return d.getMonth()===m && d.getFullYear()===a; }
+function esMesActual(f){ const ms=fechaMs(f); if(!ms)return false; const d=new Date(ms),h=new Date(); return d.getMonth()===h.getMonth() && d.getFullYear()===h.getFullYear(); }
+function mismoMes(f,m,a){ const ms=fechaMs(f); if(!ms)return false; const d=new Date(ms); return d.getMonth()===m && d.getFullYear()===a; }
 function setText(id,v){ const el=document.getElementById(id); if(el)el.textContent=v; }
-function formatearFecha(f){ return f ? new Date(f).toLocaleString("es-GT") : ""; }
+function formatearFecha(f){ const ms=fechaMs(f); return ms ? new Date(ms).toLocaleString("es-GT") : ""; }
 
 document.addEventListener("input", e=>{
     if(["buscarCliente","filtroRuta","filtroEstado"].includes(e.target.id)){
@@ -741,3 +775,300 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
     }
 }
 
+/* =========================================================
+   CLIENTES: HISTORIAL, EDICION Y COORDENADAS
+   ========================================================= */
+
+function clienteUid(cliente){
+    return String(cliente?.globalUuid || cliente?.id || "");
+}
+
+function perteneceACliente(registro, cliente){
+    const ids = [cliente?.id, cliente?.globalUuid, cliente?.clienteUuid].filter(Boolean).map(String);
+    const registroId = String(registro?.clienteId || registro?.clienteUuid || registro?.globalUuid || "");
+    const mismoNombre = normalizar(registro?.clienteNombre) === normalizar(cliente?.nombre);
+    return ids.includes(registroId) || (!!registroId === false && mismoNombre) || mismoNombre;
+}
+
+function eventosCliente(cliente){
+    return [...eventos, ...atenciones, ...noAtendidos]
+        .filter(registro => perteneceACliente(registro, cliente))
+        .map(registro => ({...registro, fecha: registro.fecha || registro.fechaHora}))
+        .sort((a,b) => fechaMs(b.fecha) - fechaMs(a.fecha));
+}
+
+function renderMesesCliente(cliente, historial){
+    const alta = fechaMs(cliente.fechaAlta || cliente.createdAt || cliente.updatedAt);
+    const pagos = new Set(historial.filter(esPago).filter(p=>String(p.estado||"ACTIVO")!=="ANULADO").map(obtenerPeriodoPago));
+    const hoy = new Date();
+    const meses = [];
+    for(let i=11;i>=0;i--){
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+        const periodo = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,"0")}`;
+        const finMes = new Date(fecha.getFullYear(), fecha.getMonth()+1, 0, 23,59,59).getTime();
+        let estado = "atrasado";
+        if (alta && finMes < alta) estado = "sin-registro";
+        else if (pagos.has(periodo)) estado = "pagado";
+        else if (i === 0) estado = "pendiente";
+        meses.push(`<div class="mes-estado ${estado}" title="${periodo}"><strong>${fecha.toLocaleDateString("es-GT",{month:"short"})}</strong><small>${fecha.getFullYear()}</small></div>`);
+    }
+    return `<div class="historial-cliente"><h3>Estado de los últimos 12 meses</h3><div class="meses-grid">${meses.join("")}</div><p><small>Gris: aún no registrado · Verde: pagado · Rojo: atrasado · Amarillo: mes actual pendiente</small></p></div>`;
+}
+
+function categoriaEvento(ev){
+    const tipo=normalizar(ev.tipo);
+    if(tipo.includes("pago"))return "Pago";
+    if(tipo.includes("no_atendido"))return "No atendido";
+    if(tipo.includes("atencion"))return "Atención";
+    return "Evento";
+}
+
+function abrirEditorClientePorId(id){
+    const cliente = clientes.find(c => clienteUid(c) === String(id) || String(c.id) === String(id));
+    if (cliente) abrirEditorCliente(cliente);
+}
+
+function abrirEditorCliente(cliente){
+    const latInicial = numeroValido(cliente.lat) ? Number(cliente.lat) : 16.3267;
+    const lngInicial = numeroValido(cliente.lng) ? Number(cliente.lng) : -89.4227;
+    const modal = document.createElement("div");
+    modal.className = "cliente-modal";
+    modal.innerHTML = `
+        <div class="cliente-perfil ficha-pro">
+            <button class="cerrar-modal" data-cerrar>×</button>
+            <h2>Editar cliente</h2>
+            <p>Corrige los datos maestros y arrastra el pin hasta la entrada real del cliente.</p>
+            <form id="formEditarCliente" class="form-grid">
+                <label>Nombre<input name="nombre" required value="${escapeAttr(cliente.nombre || "")}"></label>
+                <label>Teléfono<input name="telefono" value="${escapeAttr(cliente.telefono || "")}"></label>
+                <label>Ruta<select name="ruta">${opcionesRuta(cliente.ruta)}</select></label>
+                <label>Barrio o lugar<input name="lugar" value="${escapeAttr(cliente.lugar || "")}"></label>
+                <label>Día de pago<input name="diaPago" type="number" min="1" max="31" value="${escapeAttr(cliente.diaPago || "")}"></label>
+                <label>Servicio<input name="tipoServicio" value="${escapeAttr(cliente.tipoServicio || "")}"></label>
+                <label>Precio<input name="precio" type="number" min="0" step="0.01" value="${escapeAttr(cliente.precio || 0)}"></label>
+                <label>Estado<select name="activo"><option value="true" ${activo(cliente)?"selected":""}>Activo</option><option value="false" ${!activo(cliente)?"selected":""}>Inactivo</option></select></label>
+            </form>
+            <div id="mapaEditarCliente" class="mapa-editor"></div>
+            <div class="coordenadas-editor">
+                <input id="editarLat" type="number" step="any" value="${latInicial}">
+                <input id="editarLng" type="number" step="any" value="${lngInicial}">
+                <button class="btn-mini azul" id="centrarCoordenadas">Centrar pin</button>
+            </div>
+            <div class="acciones"><button class="btn-mini verde" id="guardarCliente">Guardar cambios</button><button class="btn-mini" data-cerrar>Cancelar</button></div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => cerrarModalCliente(modal));
+    setTimeout(() => iniciarMapaEditor(latInicial, lngInicial), 50);
+    modal.querySelector("#centrarCoordenadas").onclick = () => {
+        const lat = Number(modal.querySelector("#editarLat").value);
+        const lng = Number(modal.querySelector("#editarLng").value);
+        if (mapaEdicion && numeroValido(lat) && numeroValido(lng)) {
+            mapaEdicion.marker.setLatLng([lat,lng]);
+            mapaEdicion.map.setView([lat,lng], 18);
+        }
+    };
+    modal.querySelector("#guardarCliente").onclick = async () => {
+        const form = new FormData(modal.querySelector("#formEditarCliente"));
+        const cambios = Object.fromEntries(form.entries());
+        cambios.diaPago = Number(cambios.diaPago) || null;
+        cambios.precio = Number(cambios.precio) || 0;
+        cambios.activo = cambios.activo === "true";
+        cambios.lat = Number(modal.querySelector("#editarLat").value);
+        cambios.lng = Number(modal.querySelector("#editarLng").value);
+        if (!numeroValido(cambios.lat) || !numeroValido(cambios.lng)) return alert("Las coordenadas no son válidas.");
+        try{
+            await firebaseEnterprise.actualizarCliente(cliente.id, cambios);
+            Object.assign(cliente, cambios, {updatedAt: Date.now(), syncStatus:"PENDING"});
+            renderClientesPaginados(clientesFiltradosActuales);
+            prepararOperativo();
+            cerrarModalCliente(modal);
+        }catch(error){ alert("No se pudo actualizar el cliente: " + error.message); }
+    };
+}
+
+function iniciarMapaEditor(lat, lng){
+    if (!window.L) return alert("No se pudo cargar el mapa.");
+    const map = L.map("mapaEditarCliente").setView([lat,lng], 18);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:20, attribution:"© OpenStreetMap"}).addTo(map);
+    const marker = L.marker([lat,lng], {draggable:true}).addTo(map);
+    marker.on("dragend", () => {
+        const p = marker.getLatLng();
+        document.getElementById("editarLat").value = p.lat.toFixed(7);
+        document.getElementById("editarLng").value = p.lng.toFixed(7);
+    });
+    mapaEdicion = {map, marker};
+    setTimeout(() => map.invalidateSize(), 100);
+}
+
+function cerrarModalCliente(modal){
+    if (mapaEdicion?.map) mapaEdicion.map.remove();
+    mapaEdicion = null;
+    modal.remove();
+}
+
+/* =========================================================
+   COBROS Y RECIBOS MANUALES
+   ========================================================= */
+
+function renderCobros(){
+    const selectorMes = document.getElementById("mesCobros");
+    if (selectorMes && !selectorMes.value) selectorMes.value = periodoActual();
+    const busqueda = normalizar(document.getElementById("buscarCobro")?.value);
+    const periodo = selectorMes?.value || periodoActual();
+    const origen = document.getElementById("origenCobros")?.value || "";
+    const lista = eventos.filter(esPago).filter(p => {
+        const periodoPago = obtenerPeriodoPago(p);
+        const texto = normalizar(`${p.clienteNombre || ""} ${p.reciboNumero || ""}`);
+        return (!busqueda || texto.includes(busqueda)) && (!periodo || periodoPago === periodo) && (!origen || String(p.origen || "APP_ANDROID") === origen);
+    }).sort((a,b) => fechaMs(b.fecha || b.fechaHora) - fechaMs(a.fecha || a.fechaHora));
+
+    const total = sumaMonto(lista.filter(p => String(p.estado || "ACTIVO") !== "ANULADO"));
+    const manual = sumaMonto(lista.filter(p => p.origen === "RECIBO_MANUAL"));
+    const esperados = clientes.filter(activo).reduce((s,c) => s + Number(c.precio || 0), 0);
+    const tbody = document.getElementById("tablaCobros");
+    const metricas = document.getElementById("metricasCobros");
+    if (metricas) metricas.innerHTML = [
+        ["Esperado del mes", moneda(esperados)], ["Cobrado", moneda(total)],
+        ["Pendiente estimado", moneda(Math.max(0, esperados-total))], ["Recibos manuales", moneda(manual)]
+    ].map(([t,v]) => tarjetaMetrica(t,v)).join("");
+    if (tbody) tbody.innerHTML = lista.length ? lista.map(p => `<tr><td>${formatearFecha(p.fecha || p.fechaHora)}</td><td>${escapeHTML(p.clienteNombre || nombreCliente(p.clienteId))}</td><td>${escapeHTML(obtenerPeriodoPago(p))}</td><td>${moneda(p.monto)}</td><td>${escapeHTML(p.reciboNumero || "—")}</td><td>${p.origen === "RECIBO_MANUAL" ? "Manual" : "Aplicación"}</td></tr>`).join("") : `<tr><td colspan="6">No hay cobros para este filtro.</td></tr>`;
+}
+
+function abrirPagoManual(clientePreseleccionado){
+    const modal = document.createElement("div");
+    modal.className = "cliente-modal";
+    const opciones = clientes.filter(activo).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre))).map(c => `<option value="${escapeAttr(clienteUid(c))}" ${clientePreseleccionado && clienteUid(c)===clienteUid(clientePreseleccionado)?"selected":""}>${escapeHTML(c.nombre)} — ${escapeHTML(c.lugar || "")}</option>`).join("");
+    modal.innerHTML = `<div class="cliente-perfil ficha-pro"><button class="cerrar-modal" data-cerrar>×</button><h2>Registrar recibo manual</h2><p>Este registro entrará al balance y será visible para la aplicación Android.</p><form id="formPagoManual" class="form-grid"><label>Cliente<select name="clienteId" required><option value="">Seleccione</option>${opciones}</select></label><label>Mes pagado<input name="periodo" type="month" required value="${periodoActual()}"></label><label>Monto<input name="monto" type="number" min="0.01" step="0.01" required value="${escapeAttr(clientePreseleccionado?.precio || "")}"></label><label>Fecha del pago<input name="fecha" type="datetime-local" required value="${fechaLocalInput()}"></label><label>Número de recibo<input name="reciboNumero" required></label><label>Método<select name="metodoPago"><option>EFECTIVO</option><option>TRANSFERENCIA</option><option>DEPOSITO</option></select></label><label style="grid-column:1/-1">Observación<textarea name="observacion"></textarea></label></form><div class="acciones"><button class="btn-mini verde" id="guardarPagoManual">Guardar pago</button><button class="btn-mini" data-cerrar>Cancelar</button></div></div>`;
+    document.body.appendChild(modal);
+    modal.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => modal.remove());
+    modal.querySelector("#guardarPagoManual").onclick = async () => {
+        const datos = Object.fromEntries(new FormData(modal.querySelector("#formPagoManual")).entries());
+        const cliente = clientes.find(c => clienteUid(c) === datos.clienteId);
+        if (!cliente) return alert("Selecciona un cliente.");
+        datos.clienteNombre = cliente.nombre;
+        datos.fecha = new Date(datos.fecha).toISOString();
+        try{
+            const resultado = await firebaseEnterprise.registrarPagoManual(datos);
+            eventos.push({...datos, id:resultado.pagoId, tipo:"PAGO", mes:Number(datos.periodo.slice(5)), anio:Number(datos.periodo.slice(0,4)), origen:"RECIBO_MANUAL", estado:"ACTIVO"});
+            renderCobros(); renderKpis(); renderClientesPaginados(clientesFiltradosActuales); modal.remove();
+        }catch(error){ alert("No se pudo registrar el pago: " + error.message); }
+    };
+}
+
+/* =========================================================
+   OPERATIVO: ASIGNACION, BALANCE Y ORDEN GEOGRAFICO
+   ========================================================= */
+
+function prepararOperativo(){
+    const fecha = document.getElementById("jornadaFecha");
+    if (fecha && !fecha.value) fecha.value = new Date().toISOString().slice(0,10);
+    const barrio = document.getElementById("jornadaBarrio");
+    if (barrio) {
+        const actual = barrio.value;
+        const barrios = [...new Set(clientes.map(c=>String(c.lugar||"").trim()).filter(Boolean))].sort();
+        barrio.innerHTML = `<option value="">Todos</option>` + barrios.map(b=>`<option ${b===actual?"selected":""}>${escapeHTML(b)}</option>`).join("");
+    }
+    renderTablaOperacion(); renderJornadas(); iniciarMapaOperacion();
+}
+
+function seleccionarGrupoOperativo(){
+    const ruta = document.getElementById("jornadaRuta")?.value || "";
+    const barrio = document.getElementById("jornadaBarrio")?.value || "";
+    const elegibles = clientes.filter(c => activo(c) && (!ruta || normalizar(c.ruta)===normalizar(ruta)) && (!barrio || c.lugar===barrio));
+    seleccionOperativa = new Set(elegibles.map(clienteUid));
+    ordenOperativo = elegibles.map(clienteUid);
+    renderTablaOperacion(); actualizarMapaOperacion(); actualizarMetricasOperacion();
+}
+
+function renderTablaOperacion(){
+    const tbody = document.getElementById("tablaOperacion");
+    if (!tbody) return;
+    const lista = clientes.filter(activo).sort((a,b) => {
+        const ia = ordenOperativo.indexOf(clienteUid(a)), ib = ordenOperativo.indexOf(clienteUid(b));
+        if (ia >= 0 || ib >= 0) return (ia < 0 ? 99999 : ia) - (ib < 0 ? 99999 : ib);
+        return String(a.nombre).localeCompare(String(b.nombre));
+    });
+    tbody.innerHTML = lista.map(c => { const id=clienteUid(c), orden=ordenOperativo.indexOf(id); return `<tr><td><input type="checkbox" data-operativo-id="${escapeAttr(id)}" ${seleccionOperativa.has(id)?"checked":""}></td><td>${orden>=0?orden+1:"—"}</td><td>${escapeHTML(c.nombre||"")}</td><td>${escapeHTML(c.lugar||"")}</td><td>${escapeHTML(c.ruta||"")}</td><td>${numeroValido(c.lat)&&numeroValido(c.lng)?"Sí":"No"}</td></tr>`; }).join("");
+    tbody.querySelectorAll("[data-operativo-id]").forEach(check => check.onchange = () => {
+        const id=check.dataset.operativoId;
+        if(check.checked){seleccionOperativa.add(id); if(!ordenOperativo.includes(id)) ordenOperativo.push(id);}else{seleccionOperativa.delete(id); ordenOperativo=ordenOperativo.filter(x=>x!==id);}
+        actualizarMapaOperacion(); actualizarMetricasOperacion();
+    });
+    actualizarMetricasOperacion();
+}
+
+function optimizarSeleccionOperativa(){
+    const puntos = clientes.filter(c => seleccionOperativa.has(clienteUid(c)) && numeroValido(c.lat) && numeroValido(c.lng));
+    if (!puntos.length) return alert("Los clientes seleccionados no tienen coordenadas válidas.");
+    const restantes = [...puntos]; const orden=[]; let actual=restantes.shift(); orden.push(actual);
+    while(restantes.length){
+        let mejor=0, distancia=Infinity;
+        restantes.forEach((c,i)=>{const d=haversine(actual,c);if(d<distancia){distancia=d;mejor=i;}});
+        actual=restantes.splice(mejor,1)[0]; orden.push(actual);
+    }
+    const sinCoordenadas = clientes.filter(c => seleccionOperativa.has(clienteUid(c)) && !orden.some(o=>clienteUid(o)===clienteUid(c)));
+    ordenOperativo = [...orden,...sinCoordenadas].map(clienteUid);
+    renderTablaOperacion(); actualizarMapaOperacion();
+}
+
+function iniciarMapaOperacion(){
+    const contenedor=document.getElementById("mapaOperativo"); if(!contenedor||!window.L||mapaOperacion) return;
+    mapaOperacion=L.map(contenedor).setView([16.3267,-89.4227],13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap"}).addTo(mapaOperacion);
+    capaOperacion=L.layerGroup().addTo(mapaOperacion); setTimeout(()=>mapaOperacion.invalidateSize(),100);
+}
+
+function actualizarMapaOperacion(){
+    if(!mapaOperacion||!capaOperacion)return; capaOperacion.clearLayers();
+    const puntos=ordenOperativo.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionOperativa.has(clienteUid(c))&&numeroValido(c.lat)&&numeroValido(c.lng));
+    puntos.forEach((c,i)=>L.marker([Number(c.lat),Number(c.lng)]).bindTooltip(`${i+1}. ${escapeHTML(c.nombre||"")}`).addTo(capaOperacion));
+    if(puntos.length>1)L.polyline(puntos.map(c=>[Number(c.lat),Number(c.lng)]),{color:"#1565C0",weight:4}).addTo(capaOperacion);
+    if(puntos.length)mapaOperacion.fitBounds(L.latLngBounds(puntos.map(c=>[Number(c.lat),Number(c.lng)])).pad(.12));
+}
+
+function metricasOperacion(){
+    const lista=ordenOperativo.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionOperativa.has(clienteUid(c)));
+    const coordenados=lista.filter(c=>numeroValido(c.lat)&&numeroValido(c.lng)); let km=0;
+    for(let i=1;i<coordenados.length;i++)km+=haversine(coordenados[i-1],coordenados[i]);
+    const minutosServicio=lista.reduce((s,c)=>s+minutosPorServicio(c),0);
+    const minutosTraslado=Math.round((km/18)*60);
+    return {lista,km,minutos:minutosServicio+minutosTraslado,coordenados:coordenados.length};
+}
+
+function actualizarMetricasOperacion(){
+    const el=document.getElementById("metricasOperativas"); if(!el)return; const m=metricasOperacion();
+    el.innerHTML=[["Clientes",m.lista.length],["Con coordenadas",`${m.coordenados}/${m.lista.length}`],["Distancia estimada",`${m.km.toFixed(1)} km`],["Tiempo estimado",duracion(m.minutos)]].map(([t,v])=>tarjetaMetrica(t,v)).join("");
+}
+
+async function guardarAsignacionOperativa(){
+    const m=metricasOperacion();
+    const datos={fecha:document.getElementById("jornadaFecha")?.value,piloto:document.getElementById("jornadaPiloto")?.value,ayudantes:document.getElementById("jornadaAyudantes")?.value,vehiculo:document.getElementById("jornadaVehiculo")?.value,ruta:document.getElementById("jornadaRuta")?.value,barrios:[...new Set(m.lista.map(c=>c.lugar).filter(Boolean))],clienteIds:m.lista.map(clienteUid),ordenClienteIds:m.lista.map(clienteUid),distanciaKmEstimada:Number(m.km.toFixed(2)),minutosEstimados:m.minutos,usuario:"enterprise"};
+    try{const r=await firebaseEnterprise.guardarJornadaOperativa(datos);jornadasOperativas.push({...datos,id:r.jornadaId,estado:"ASIGNADA"});renderJornadas();alert("Jornada asignada correctamente.");}catch(error){alert("No se pudo guardar la jornada: "+error.message);}
+}
+
+function renderJornadas(){
+    const tbody=document.getElementById("tablaJornadas");if(!tbody)return;
+    tbody.innerHTML=jornadasOperativas.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(j=>`<tr><td>${escapeHTML(j.fecha||"")}</td><td>${escapeHTML(j.piloto||"")}</td><td>${escapeHTML(j.vehiculo||"—")}</td><td>${Number(j.cantidadClientes||j.clienteIds?.length||0)}</td><td>${Number(j.distanciaKmEstimada||0).toFixed(1)} km</td><td>${duracion(j.minutosEstimados||0)}</td><td>${escapeHTML(j.estado||"")}</td></tr>`).join("")||`<tr><td colspan="7">No hay jornadas guardadas.</td></tr>`;
+}
+
+/* UTILIDADES COMPARTIDAS */
+function opcionesRuta(actual){return ["El Centro","Ixobel","La Amistad"].map(r=>`<option ${normalizar(r)===normalizar(actual)?"selected":""}>${r}</option>`).join("");}
+function normalizar(v){return String(v||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+function escapeHTML(v){const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML;}
+function escapeAttr(v){return escapeHTML(v).replace(/"/g,"&quot;");}
+function numeroValido(v){return v!==null&&v!==""&&Number.isFinite(Number(v));}
+function fechaMs(v){if(v?.toDate)return v.toDate().getTime();if(typeof v==="number")return v;const n=new Date(v).getTime();return Number.isFinite(n)?n:0;}
+function periodoActual(){return new Date().toISOString().slice(0,7);}
+function fechaLocalInput(){const d=new Date(Date.now()-new Date().getTimezoneOffset()*60000);return d.toISOString().slice(0,16);}
+function obtenerPeriodoPago(p){if(p.periodo)return String(p.periodo);if(p.anio&&p.mes)return `${p.anio}-${String(p.mes).padStart(2,"0")}`;const d=new Date(p.fecha||p.fechaHora);return Number.isNaN(d.getTime())?"":`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
+function nombreCliente(id){return clientes.find(c=>[c.id,c.globalUuid].map(String).includes(String(id)))?.nombre||"Cliente";}
+function moneda(v){return "Q"+Number(v||0).toLocaleString("es-GT",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function tarjetaMetrica(t,v){return `<div class="metrica-card"><span>${escapeHTML(t)}</span><strong>${escapeHTML(v)}</strong></div>`;}
+function duracion(min){const n=Math.max(0,Math.round(Number(min)||0));return `${Math.floor(n/60)} h ${n%60} min`;}
+function minutosPorServicio(c){const t=normalizar(c.tipoServicio);if(t.includes("industrial"))return 12;if(t.includes("comercial"))return 8;return 5;}
+function haversine(a,b){const r=6371,toRad=x=>x*Math.PI/180,dLat=toRad(Number(b.lat)-Number(a.lat)),dLng=toRad(Number(b.lng)-Number(a.lng)),la1=toRad(Number(a.lat)),la2=toRad(Number(b.lat));const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;return 2*r*Math.asin(Math.sqrt(h));}
+
+document.addEventListener("input", event => {
+    if (["buscarCobro","mesCobros","origenCobros"].includes(event.target.id)) renderCobros();
+});

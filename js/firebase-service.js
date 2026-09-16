@@ -50,6 +50,134 @@ export function obtenerSolicitudes() {
   return obtenerColeccion("solicitudes");
 }
 
+export function obtenerAsignacionesOperativas() {
+  return obtenerColeccion("jornadas_operativas");
+}
+
+export async function actualizarCliente(clienteId, cambios) {
+  if (!clienteId) throw new Error("clienteId requerido");
+
+  const permitidos = [
+    "nombre", "telefono", "ruta", "lugar", "diaPago",
+    "tipoServicio", "precio", "activo", "lat", "lng"
+  ];
+  const datos = {};
+
+  permitidos.forEach(campo => {
+    if (Object.prototype.hasOwnProperty.call(cambios, campo)) {
+      datos[campo] = cambios[campo];
+    }
+  });
+
+  datos.updatedAt = Date.now();
+  datos.syncStatus = "PENDING";
+  datos.originDevice = "WEB_ENTERPRISE";
+
+  const clienteRef = doc(db, "clientes", clienteId);
+  const auditoriaRef = doc(collection(db, "auditoria"));
+  await runTransaction(db, async transaction => {
+    const anteriorSnapshot = await transaction.get(clienteRef);
+    if (!anteriorSnapshot.exists()) throw new Error("El cliente ya no existe.");
+    const anterior = anteriorSnapshot.data();
+    transaction.update(clienteRef, datos);
+    transaction.set(auditoriaRef, {
+      id: auditoriaRef.id,
+      entidad: "CLIENTE",
+      entidadId: clienteId,
+      accion: "ACTUALIZAR_CLIENTE",
+      usuario: "enterprise",
+      origen: "WEB_ENTERPRISE",
+      cambios: datos,
+      ubicacionAnterior: { lat: anterior.lat ?? null, lng: anterior.lng ?? null },
+      ubicacionNueva: { lat: datos.lat ?? anterior.lat ?? null, lng: datos.lng ?? anterior.lng ?? null },
+      createdAt: serverTimestamp()
+    });
+  });
+  return { ok: true, clienteId };
+}
+
+export async function registrarPagoManual(datos) {
+  const clienteId = String(datos.clienteId || "").trim();
+  const periodo = String(datos.periodo || "").trim();
+  const reciboNumero = String(datos.reciboNumero || "").trim();
+  const monto = Number(datos.monto);
+
+  if (!clienteId || !/^\d{4}-\d{2}$/.test(periodo)) {
+    throw new Error("Cliente y período son obligatorios.");
+  }
+  if (!reciboNumero) throw new Error("El número de recibo es obligatorio.");
+  if (!Number.isFinite(monto) || monto <= 0) throw new Error("Monto inválido.");
+
+  const [anio, mes] = periodo.split("-").map(Number);
+  const clave = `${clienteId}|${periodo}|${reciboNumero.toLowerCase()}`;
+  const pagoId = "manual_" + await sha256(clave);
+  const pagoRef = doc(db, "pagos", pagoId);
+
+  await runTransaction(db, async transaction => {
+    const existente = await transaction.get(pagoRef);
+    if (existente.exists()) {
+      throw new Error("Este recibo manual ya fue registrado para ese período.");
+    }
+
+    transaction.set(pagoRef, {
+      id: pagoId,
+      tipo: "PAGO",
+      clienteId,
+      clienteNombre: String(datos.clienteNombre || "").trim(),
+      fecha: String(datos.fecha || new Date().toISOString()),
+      fechaHora: String(datos.fecha || new Date().toISOString()),
+      monto,
+      mes,
+      anio,
+      periodo,
+      metodoPago: String(datos.metodoPago || "EFECTIVO"),
+      reciboNumero,
+      detalle: String(datos.observacion || "Pago registrado desde recibo manual"),
+      origen: "RECIBO_MANUAL",
+      estado: "ACTIVO",
+      usuario: String(datos.usuario || "enterprise"),
+      dispositivo: "WEB_ENTERPRISE",
+      syncStatus: "SYNCED",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  });
+
+  return { ok: true, pagoId };
+}
+
+export async function guardarJornadaOperativa(datos) {
+  const fecha = String(datos.fecha || "").trim();
+  const piloto = String(datos.piloto || "").trim();
+  const clienteIds = Array.isArray(datos.clienteIds) ? datos.clienteIds : [];
+
+  if (!fecha || !piloto || !clienteIds.length) {
+    throw new Error("Fecha, piloto y al menos un cliente son obligatorios.");
+  }
+
+  const jornadaRef = doc(collection(db, "jornadas_operativas"));
+  await setDoc(jornadaRef, {
+    id: jornadaRef.id,
+    fecha,
+    piloto,
+    ayudantes: String(datos.ayudantes || "").trim(),
+    vehiculo: String(datos.vehiculo || "").trim(),
+    ruta: String(datos.ruta || "").trim(),
+    barrios: Array.isArray(datos.barrios) ? datos.barrios : [],
+    clienteIds,
+    ordenClienteIds: Array.isArray(datos.ordenClienteIds) ? datos.ordenClienteIds : clienteIds,
+    cantidadClientes: clienteIds.length,
+    distanciaKmEstimada: Number(datos.distanciaKmEstimada || 0),
+    minutosEstimados: Number(datos.minutosEstimados || 0),
+    estado: "ASIGNADA",
+    usuario: String(datos.usuario || "enterprise"),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  return { ok: true, jornadaId: jornadaRef.id };
+}
+
 
 /* =========================================================
    SOLICITUDES

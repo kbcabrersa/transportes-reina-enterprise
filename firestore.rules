@@ -28,6 +28,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /jornadas_operativas/{jornadaId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
+    match /auditoria/{auditoriaId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+
     match /solicitudes/{solicitudId} {
       allow create: if
         request.resource.data.idSolicitud == solicitudId

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Enterprise | Transportes Reina Local</title>
 <link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body class="enterprise-body">
 
@@ -14,15 +15,15 @@
     <a href="#dashboard" class="tab-link activo" data-tab="dashboard">Dashboard</a>
     <a href="#clientes" class="tab-link" data-tab="clientes">Clientes</a>
     <a href="#solicitudes" class="tab-link" data-tab="solicitudes">Solicitudes</a>
-    <a href="#cobros">Cobros</a>
-    <a href="#operativo">Operativo</a>
+    <a href="#cobros" class="tab-link" data-tab="cobros">Cobros</a>
+    <a href="#operativo" class="tab-link" data-tab="operativo">Operativo</a>
     <a href="#informes">Informes</a>
     <a href="#archivo">Archivo de Oficina</a>
 
     <button onclick="cerrarSesion()" class="cerrar-sesion">Cerrar Sesión</button>
 </aside>
 
-<main clas  s="enterprise-main">
+<main class="enterprise-main">
 
 <header class="enterprise-topbar">
     <h1>Enterprise <span>| Transportes Reina Local</span></h1>
@@ -83,14 +84,53 @@
         <thead>
             <tr>
                 <th>Cliente</th>
+                <th>Teléfono</th>
                 <th>Ruta</th>
                 <th>Lugar</th>
+                <th>Último pago</th>
+                <th>Última atención</th>
                 <th>Estado</th>
-                <th>Última Actualización</th>
+                <th>Acciones</th>
             </tr>
         </thead>
-        <tbody><tr><td colspan="5">Cargando clientes...</td></tr></tbody>
+        <tbody><tr><td colspan="8">Cargando clientes...</td></tr></tbody>
     </table>
+</section>
+
+<section id="cobros" class="enterprise-section tab-section">
+    <div class="section-head">
+        <div><h2>Cobros</h2><p>Balance, historial y recibos manuales sincronizados.</p></div>
+        <button class="btn-mini verde" onclick="abrirPagoManual()">Registrar recibo manual</button>
+    </div>
+    <div class="metricas-grid" id="metricasCobros"></div>
+    <div class="filtros">
+        <input id="buscarCobro" placeholder="Buscar cliente o recibo">
+        <input id="mesCobros" type="month">
+        <select id="origenCobros"><option value="">Todos los orígenes</option><option value="RECIBO_MANUAL">Recibo manual</option><option value="APP_ANDROID">Aplicación</option></select>
+    </div>
+    <div class="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Período</th><th>Monto</th><th>Recibo</th><th>Origen</th></tr></thead><tbody id="tablaCobros"></tbody></table></div>
+</section>
+
+<section id="operativo" class="enterprise-section tab-section">
+    <div class="section-head"><div><h2>Planificación operativa</h2><p>Asigna barrios o clientes y equilibra distancia, tiempo y alcance.</p></div></div>
+    <div class="operativo-layout">
+        <div class="panel-operativo">
+            <div class="form-grid">
+                <label>Fecha<input id="jornadaFecha" type="date"></label>
+                <label>Piloto<input id="jornadaPiloto" placeholder="Nombre del piloto"></label>
+                <label>Ayudantes<input id="jornadaAyudantes" placeholder="Nombres"></label>
+                <label>Vehículo<input id="jornadaVehiculo" placeholder="Camión o trimoto"></label>
+                <label>Ruta<select id="jornadaRuta"><option value="">Todas</option><option>El Centro</option><option>Ixobel</option><option>La Amistad</option></select></label>
+                <label>Barrio<select id="jornadaBarrio"><option value="">Todos</option></select></label>
+            </div>
+            <div class="acciones"><button class="btn-mini azul" onclick="seleccionarGrupoOperativo()">Seleccionar grupo</button><button class="btn-mini naranja" onclick="optimizarSeleccionOperativa()">Ordenar por cercanía</button><button class="btn-mini verde" onclick="guardarAsignacionOperativa()">Asignar jornada</button></div>
+            <div class="metricas-grid" id="metricasOperativas"></div>
+            <div class="tabla-scroll tabla-clientes-operativo"><table><thead><tr><th></th><th>Orden</th><th>Cliente</th><th>Barrio</th><th>Ruta</th><th>Coordenadas</th></tr></thead><tbody id="tablaOperacion"></tbody></table></div>
+        </div>
+        <div id="mapaOperativo" class="mapa-operativo"></div>
+    </div>
+    <h3 class="subtitulo">Jornadas guardadas</h3>
+    <div class="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Piloto</th><th>Vehículo</th><th>Clientes</th><th>Distancia</th><th>Tiempo</th><th>Estado</th></tr></thead><tbody id="tablaJornadas"></tbody></table></div>
 </section>
 
 <section id="solicitudes" class="enterprise-section tab-section">
@@ -127,6 +167,7 @@
 </div>
 </main>
 
-<script src="../js/dashboard-enterprise.js?v=20260830-5"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="../js/dashboard-enterprise.js?v=20260916-1"></script>
 </body>
 </html>
