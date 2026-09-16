@@ -73,6 +73,34 @@ export async function actualizarCliente(clienteId, cambios) {
     }
   });
 
+  for (const campo of ["nombre", "ruta", "lugar"]) {
+    if (Object.prototype.hasOwnProperty.call(datos, campo)) {
+      datos[campo] = String(datos[campo] || "").trim();
+      if (!datos[campo]) throw new Error(`${campo} es obligatorio.`);
+      datos[`${campo}Normalizado`] = normalizarTexto(datos[campo]);
+    }
+  }
+  if ("diaPago" in datos && (!Number.isInteger(datos.diaPago) || datos.diaPago < 1 || datos.diaPago > 31)) {
+    throw new Error("El día de pago debe estar entre 1 y 31.");
+  }
+  if ("precio" in datos && (!Number.isFinite(datos.precio) || datos.precio < 0)) {
+    throw new Error("Precio inválido.");
+  }
+  if ("lat" in datos || "lng" in datos) {
+    const vacio = v => v === null || v === "";
+    if (vacio(datos.lat) && vacio(datos.lng)) {
+      datos.lat = null;
+      datos.lng = null;
+    } else {
+      if (vacio(datos.lat) || vacio(datos.lng) || !Number.isFinite(Number(datos.lat)) ||
+          !Number.isFinite(Number(datos.lng)) || Math.abs(Number(datos.lat)) > 90 || Math.abs(Number(datos.lng)) > 180) {
+        throw new Error("Las coordenadas no son válidas.");
+      }
+      datos.lat = Number(datos.lat);
+      datos.lng = Number(datos.lng);
+    }
+  }
+
   datos.updatedAt = Date.now();
   datos.syncStatus = "PENDING";
   datos.originDevice = "WEB_ENTERPRISE";
@@ -106,30 +134,46 @@ export async function registrarPagoManual(datos) {
   const reciboNumero = String(datos.reciboNumero || "").trim();
   const monto = Number(datos.monto);
 
-  if (!clienteId || !/^\d{4}-\d{2}$/.test(periodo)) {
+  if (!clienteId || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(periodo)) {
     throw new Error("Cliente y período son obligatorios.");
   }
   if (!reciboNumero) throw new Error("El número de recibo es obligatorio.");
   if (!Number.isFinite(monto) || monto <= 0) throw new Error("Monto inválido.");
+  // Android persiste Pago.monto como Int: evitar truncar centavos al descargar.
+  if (!Number.isInteger(monto) || monto > 2147483647) {
+    throw new Error("Android admite únicamente montos en quetzales enteros, hasta 2147483647.");
+  }
+  const fecha = datos.fecha === undefined ? Date.now() : new Date(datos.fecha).getTime();
+  if (!Number.isFinite(fecha) || fecha <= 0) throw new Error("Fecha inválida.");
 
   const [anio, mes] = periodo.split("-").map(Number);
   const clave = `${clienteId}|${periodo}|${reciboNumero.toLowerCase()}`;
   const pagoId = "manual_" + await sha256(clave);
   const pagoRef = doc(db, "pagos", pagoId);
+  const clienteRef = doc(db, "clientes", String(datos.clienteDocumentoId || clienteId));
 
   await runTransaction(db, async transaction => {
     const existente = await transaction.get(pagoRef);
     if (existente.exists()) {
       throw new Error("Este recibo manual ya fue registrado para ese período.");
     }
+    const clienteSnapshot = await transaction.get(clienteRef);
+    if (!clienteSnapshot.exists()) throw new Error("El cliente ya no existe.");
+    const cliente = clienteSnapshot.data();
+    const clienteUuid = String(cliente.globalUuid || "").trim();
+    const clienteServerId = Number.isInteger(cliente.serverId) ? cliente.serverId : null;
+    if (!clienteUuid && clienteServerId === null) throw new Error("El cliente no tiene identidad compatible con Android.");
 
     transaction.set(pagoRef, {
       id: pagoId,
-      tipo: "PAGO",
+      idPago: pagoId,
+      tipo: "pago",
       clienteId,
-      clienteNombre: String(datos.clienteNombre || "").trim(),
-      fecha: String(datos.fecha || new Date().toISOString()),
-      fechaHora: String(datos.fecha || new Date().toISOString()),
+      clienteUuid: clienteUuid || null,
+      clienteServerId,
+      clienteNombre: String(cliente.nombre || "").trim(),
+      fecha,
+      fechaHora: new Date(fecha).toISOString(),
       monto,
       mes,
       anio,
@@ -139,11 +183,16 @@ export async function registrarPagoManual(datos) {
       detalle: String(datos.observacion || "Pago registrado desde recibo manual"),
       origen: "RECIBO_MANUAL",
       estado: "ACTIVO",
+      anulado: false,
+      fechaAnulacion: null,
+      motivoAnulacion: null,
+      usuarioAnulacion: null,
       usuario: String(datos.usuario || "enterprise"),
       dispositivo: "WEB_ENTERPRISE",
+      originDevice: "WEB_ENTERPRISE",
       syncStatus: "SYNCED",
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      updatedAt: Date.now()
     });
   });
 

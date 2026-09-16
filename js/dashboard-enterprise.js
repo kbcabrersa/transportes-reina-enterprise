@@ -125,7 +125,7 @@ function renderKpis(){
     const activos = clientes.filter(c=>activo(c)).length;
     const pendientes = solicitudes.filter(s=>String(s.estado||"").toUpperCase()==="PENDIENTE").length;
     const cobrosMes = eventos
-        .filter(e=>esPago(e) && esMesActual(e.fecha))
+        .filter(e=>esPagoVigente(e) && esMesActual(e.fecha))
         .reduce((a,e)=>a + Number(e.monto || 0),0);
 
     setText("dashClientes", activos);
@@ -142,8 +142,8 @@ function renderDashboard(){
     const mesPasado = mesPasadoFecha.getMonth();
     const anioPasado = mesPasadoFecha.getFullYear();
 
-    const pagosActual = eventos.filter(e=>esPago(e)&&mismoMes(e.fecha,mesActual,anioActual));
-    const pagosPasado = eventos.filter(e=>esPago(e)&&mismoMes(e.fecha,mesPasado,anioPasado));
+    const pagosActual = eventos.filter(e=>esPagoVigente(e)&&mismoMes(e.fecha,mesActual,anioActual));
+    const pagosPasado = eventos.filter(e=>esPagoVigente(e)&&mismoMes(e.fecha,mesPasado,anioPasado));
 
     const atActual = atenciones.filter(a=>mismoMes(a.fecha,mesActual,anioActual));
     const atPasado = atenciones.filter(a=>mismoMes(a.fecha,mesPasado,anioPasado));
@@ -536,6 +536,8 @@ function traducirEvento(tipo){
 function activo(c){ return c.activo === true || c.activo === "true"; }
 function verdad(v){ return v===true || v==="true" || v==="TRUE" || v===1; }
 function esPago(e){ return String(e.tipo||"").toLowerCase().includes("pago"); }
+function pagoAnulado(p){return verdad(p.anulado) || String(p.estado||"ACTIVO").toUpperCase()==="ANULADO";}
+function esPagoVigente(p){return esPago(p) && !pagoAnulado(p);}
 function sumaMonto(lista){ return lista.reduce((a,e)=>a+Number(e.monto||0),0); }
 function esMesActual(f){ const ms=fechaMs(f); if(!ms)return false; const d=new Date(ms),h=new Date(); return d.getMonth()===h.getMonth() && d.getFullYear()===h.getFullYear(); }
 function mismoMes(f,m,a){ const ms=fechaMs(f); if(!ms)return false; const d=new Date(ms); return d.getMonth()===m && d.getFullYear()===a; }
@@ -769,6 +771,7 @@ async function cambiarEstadoSolicitud(idSolicitud, estado){
         document.querySelector(".cliente-modal")?.remove();
 
         if(resultado.estado === "CONVERTIDA_CLIENTE"){
+            await cargarDatosEnterprise();
             alert(
                 "Solicitud convertida en cliente correctamente.\n\n" +
                 "Cliente Firebase: " +
@@ -799,9 +802,13 @@ function clienteUid(cliente){
 
 function perteneceACliente(registro, cliente){
     const ids = [cliente?.id, cliente?.globalUuid, cliente?.clienteUuid].filter(Boolean).map(String);
-    const registroId = String(registro?.clienteId || registro?.clienteUuid || registro?.globalUuid || "");
+    const registroId = String(registro?.clienteUuid || registro?.clienteId || registro?.globalUuid || "");
     const mismoNombre = normalizar(registro?.clienteNombre) === normalizar(cliente?.nombre);
-    return ids.includes(registroId) || (!!registroId === false && mismoNombre) || mismoNombre;
+    if (registroId) return ids.includes(registroId);
+    if (registro?.clienteServerId !== null && registro?.clienteServerId !== undefined) {
+        return cliente?.serverId !== null && cliente?.serverId !== undefined && String(registro.clienteServerId) === String(cliente.serverId);
+    }
+    return !!normalizar(cliente?.nombre) && mismoNombre && clientes.filter(c=>normalizar(c.nombre)===normalizar(cliente.nombre)).length === 1;
 }
 
 function eventosCliente(cliente){
@@ -813,7 +820,7 @@ function eventosCliente(cliente){
 
 function renderMesesCliente(cliente, historial){
     const alta = fechaMs(cliente.fechaAlta || cliente.createdAt || cliente.updatedAt);
-    const pagos = new Set(historial.filter(esPago).filter(p=>String(p.estado||"ACTIVO")!=="ANULADO").map(obtenerPeriodoPago));
+    const pagos = new Set(historial.filter(esPagoVigente).map(obtenerPeriodoPago));
     const hoy = new Date();
     const meses = [];
     for(let i=11;i>=0;i--){
@@ -864,8 +871,8 @@ function abrirEditorCliente(cliente){
             </form>
             <div id="mapaEditarCliente" class="mapa-editor"></div>
             <div class="coordenadas-editor">
-                <input id="editarLat" type="number" step="any" value="${latInicial}">
-                <input id="editarLng" type="number" step="any" value="${lngInicial}">
+                <input id="editarLat" type="number" step="any" value="${numeroValido(cliente.lat) ? Number(cliente.lat) : ""}">
+                <input id="editarLng" type="number" step="any" value="${numeroValido(cliente.lng) ? Number(cliente.lng) : ""}">
                 <button class="btn-mini azul" id="centrarCoordenadas">Centrar pin</button>
             </div>
             <div class="acciones"><button class="btn-mini verde" id="guardarCliente">Guardar cambios</button><button class="btn-mini" data-cerrar>Cancelar</button></div>
@@ -873,7 +880,7 @@ function abrirEditorCliente(cliente){
     document.body.appendChild(modal);
 
     modal.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => cerrarModalCliente(modal));
-    setTimeout(() => iniciarMapaEditor(latInicial, lngInicial), 50);
+    setTimeout(() => { if (modal.isConnected) iniciarMapaEditor(latInicial, lngInicial); }, 50);
     modal.querySelector("#centrarCoordenadas").onclick = () => {
         const lat = Number(modal.querySelector("#editarLat").value);
         const lng = Number(modal.querySelector("#editarLng").value);
@@ -883,19 +890,21 @@ function abrirEditorCliente(cliente){
         }
     };
     modal.querySelector("#guardarCliente").onclick = async () => {
-        const form = new FormData(modal.querySelector("#formEditarCliente"));
+        const formulario = modal.querySelector("#formEditarCliente");
+        if (!formulario.reportValidity()) return;
+        const form = new FormData(formulario);
         const cambios = Object.fromEntries(form.entries());
         cambios.diaPago = Number(cambios.diaPago) || null;
         cambios.precio = Number(cambios.precio) || 0;
         cambios.activo = cambios.activo === "true";
-        cambios.lat = Number(modal.querySelector("#editarLat").value);
-        cambios.lng = Number(modal.querySelector("#editarLng").value);
-        if (!numeroValido(cambios.lat) || !numeroValido(cambios.lng)) return alert("Las coordenadas no son válidas.");
+        cambios.lat = modal.querySelector("#editarLat").value === "" ? null : Number(modal.querySelector("#editarLat").value);
+        cambios.lng = modal.querySelector("#editarLng").value === "" ? null : Number(modal.querySelector("#editarLng").value);
+        if (!(cambios.lat === null && cambios.lng === null) && (!numeroValido(cambios.lat) || !numeroValido(cambios.lng) || Math.abs(cambios.lat)>90 || Math.abs(cambios.lng)>180)) return alert("Las coordenadas no son válidas.");
         try{
             await firebaseEnterprise.actualizarCliente(cliente.id, cambios);
             Object.assign(cliente, cambios, {updatedAt: Date.now(), syncStatus:"PENDING"});
             renderClientesPaginados(clientesFiltradosActuales);
-            prepararOperativo();
+            prepararOperativo(); prepararJornadasCobro(); renderCobros(); renderKpis(); renderDashboard();
             cerrarModalCliente(modal);
         }catch(error){ alert("No se pudo actualizar el cliente: " + error.message); }
     };
@@ -912,7 +921,7 @@ function iniciarMapaEditor(lat, lng){
         document.getElementById("editarLng").value = p.lng.toFixed(7);
     });
     mapaEdicion = {map, marker};
-    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => { if (mapaEdicion?.map === map) map.invalidateSize(); }, 100);
 }
 
 function cerrarModalCliente(modal){
@@ -937,8 +946,8 @@ function renderCobros(){
         return (!busqueda || texto.includes(busqueda)) && (!periodo || periodoPago === periodo) && (!origen || String(p.origen || "APP_ANDROID") === origen);
     }).sort((a,b) => fechaMs(b.fecha || b.fechaHora) - fechaMs(a.fecha || a.fechaHora));
 
-    const total = sumaMonto(lista.filter(p => String(p.estado || "ACTIVO") !== "ANULADO"));
-    const manual = sumaMonto(lista.filter(p => p.origen === "RECIBO_MANUAL"));
+    const total = sumaMonto(lista.filter(esPagoVigente));
+    const manual = sumaMonto(lista.filter(p => esPagoVigente(p) && p.origen === "RECIBO_MANUAL"));
     const esperados = clientes.filter(activo).reduce((s,c) => s + Number(c.precio || 0), 0);
     const tbody = document.getElementById("tablaCobros");
     const metricas = document.getElementById("metricasCobros");
@@ -953,19 +962,22 @@ function abrirPagoManual(clientePreseleccionado){
     const modal = document.createElement("div");
     modal.className = "cliente-modal";
     const opciones = clientes.filter(activo).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre))).map(c => `<option value="${escapeAttr(clienteUid(c))}" ${clientePreseleccionado && clienteUid(c)===clienteUid(clientePreseleccionado)?"selected":""}>${escapeHTML(c.nombre)} — ${escapeHTML(c.lugar || "")}</option>`).join("");
-    modal.innerHTML = `<div class="cliente-perfil ficha-pro"><button class="cerrar-modal" data-cerrar>×</button><h2>Registrar recibo manual</h2><p>Este registro entrará al balance y será visible para la aplicación Android.</p><form id="formPagoManual" class="form-grid"><label>Cliente<select name="clienteId" required><option value="">Seleccione</option>${opciones}</select></label><label>Mes pagado<input name="periodo" type="month" required value="${periodoActual()}"></label><label>Monto<input name="monto" type="number" min="0.01" step="0.01" required value="${escapeAttr(clientePreseleccionado?.precio || "")}"></label><label>Fecha del pago<input name="fecha" type="datetime-local" required value="${fechaLocalInput()}"></label><label>Número de recibo<input name="reciboNumero" required></label><label>Método<select name="metodoPago"><option>EFECTIVO</option><option>TRANSFERENCIA</option><option>DEPOSITO</option></select></label><label style="grid-column:1/-1">Observación<textarea name="observacion"></textarea></label></form><div class="acciones"><button class="btn-mini verde" id="guardarPagoManual">Guardar pago</button><button class="btn-mini" data-cerrar>Cancelar</button></div></div>`;
+    modal.innerHTML = `<div class="cliente-perfil ficha-pro"><button class="cerrar-modal" data-cerrar>×</button><h2>Registrar recibo manual</h2><p>Este registro entrará al balance y será visible para la aplicación Android. Ingresa el monto en quetzales enteros.</p><form id="formPagoManual" class="form-grid"><label>Cliente<select name="clienteId" required><option value="">Seleccione</option>${opciones}</select></label><label>Mes pagado<input name="periodo" type="month" required value="${periodoActual()}"></label><label>Monto<input name="monto" type="number" min="1" step="1" max="2147483647" required value="${escapeAttr(clientePreseleccionado?.precio || "")}"></label><label>Fecha del pago<input name="fecha" type="datetime-local" required value="${fechaLocalInput()}"></label><label>Número de recibo<input name="reciboNumero" required></label><label>Método<select name="metodoPago"><option>EFECTIVO</option><option>TRANSFERENCIA</option><option>DEPOSITO</option></select></label><label style="grid-column:1/-1">Observación<textarea name="observacion"></textarea></label></form><div class="acciones"><button class="btn-mini verde" id="guardarPagoManual">Guardar pago</button><button class="btn-mini" data-cerrar>Cancelar</button></div></div>`;
     document.body.appendChild(modal);
     modal.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => modal.remove());
     modal.querySelector("#guardarPagoManual").onclick = async () => {
-        const datos = Object.fromEntries(new FormData(modal.querySelector("#formPagoManual")).entries());
+        const formulario = modal.querySelector("#formPagoManual");
+        if (!formulario.reportValidity()) return;
+        const datos = Object.fromEntries(new FormData(formulario).entries());
         const cliente = clientes.find(c => clienteUid(c) === datos.clienteId);
         if (!cliente) return alert("Selecciona un cliente.");
         datos.clienteNombre = cliente.nombre;
-        datos.fecha = new Date(datos.fecha).toISOString();
+        datos.clienteDocumentoId = cliente.id;
         try{
+            datos.fecha = new Date(datos.fecha).getTime();
             const resultado = await firebaseEnterprise.registrarPagoManual(datos);
             eventos.push({...datos, id:resultado.pagoId, tipo:"PAGO", mes:Number(datos.periodo.slice(5)), anio:Number(datos.periodo.slice(0,4)), origen:"RECIBO_MANUAL", estado:"ACTIVO"});
-            renderCobros(); renderKpis(); renderClientesPaginados(clientesFiltradosActuales); modal.remove();
+            renderCobros(); renderKpis(); renderDashboard(); renderClientesPaginados(clientesFiltradosActuales); modal.remove();
         }catch(error){ alert("No se pudo registrar el pago: " + error.message); }
     };
 }
@@ -976,7 +988,7 @@ function abrirPagoManual(clientePreseleccionado){
 
 function prepararOperativo(){
     const fecha = document.getElementById("jornadaFecha");
-    if (fecha && !fecha.value) fecha.value = new Date().toISOString().slice(0,10);
+    if (fecha && !fecha.value) fecha.value = fechaDiaLocal(new Date());
     const barrio = document.getElementById("jornadaBarrio");
     if (barrio) {
         const actual = barrio.value;
@@ -1098,7 +1110,7 @@ function reconstruirJornadaCobro(){
     if(!fecha)return alert("Selecciona la fecha que deseas reconstruir.");
     pagosReconstruidos=eventos.filter(esPago).filter(p=>{
         const cliente=clientes.find(c=>perteneceACliente(p,c));
-        return fechaDiaLocal(p.fecha||p.fechaHora)===fecha&&(!cobrador||normalizar(p.usuario).includes(cobrador))&&cliente&&filtrosJornadaCobro(cliente)&&String(p.estado||"ACTIVO")!=="ANULADO";
+        return fechaDiaLocal(p.fecha||p.fechaHora)===fecha&&(!cobrador||normalizar(p.usuario).includes(cobrador))&&cliente&&filtrosJornadaCobro(cliente)&&!pagoAnulado(p);
     }).sort((a,b)=>fechaMs(a.fecha||a.fechaHora)-fechaMs(b.fecha||b.fechaHora));
     const ids=[];
     pagosReconstruidos.forEach(p=>{const c=clientes.find(x=>perteneceACliente(p,x));const id=c&&clienteUid(c);if(id&&!ids.includes(id))ids.push(id);});
@@ -1109,7 +1121,7 @@ function reconstruirJornadaCobro(){
 
 function cargarPendientesCobro(){
     const periodo=document.getElementById("cobroJornadaPeriodo")?.value||periodoActual();
-    const pagados=new Set(eventos.filter(esPago).filter(p=>obtenerPeriodoPago(p)===periodo&&String(p.estado||"ACTIVO")!=="ANULADO").map(p=>{
+    const pagados=new Set(eventos.filter(esPago).filter(p=>obtenerPeriodoPago(p)===periodo&&!pagoAnulado(p)).map(p=>{
         const c=clientes.find(x=>perteneceACliente(p,x));return c?clienteUid(c):String(p.clienteId||"");
     }));
     const pendientes=clientes.filter(c=>activo(c)&&filtrosJornadaCobro(c)&&!pagados.has(clienteUid(c)));
@@ -1147,7 +1159,8 @@ function metricasCobroActual(){
     const cobrado=modoJornadaCobro==="RECONSTRUIDA"?sumaMonto(pagosReconstruidos.filter(p=>lista.some(c=>perteneceACliente(p,c)))):0;
     const esperado=lista.reduce((s,c)=>s+Number(c.precio||0),0);
     let minutos=Math.round((km/18)*60)+lista.length*4;
-    if(modoJornadaCobro==="RECONSTRUIDA"&&pagosReconstruidos.length>1)minutos=Math.max(0,Math.round((fechaMs(pagosReconstruidos.at(-1).fecha||pagosReconstruidos.at(-1).fechaHora)-fechaMs(pagosReconstruidos[0].fecha||pagosReconstruidos[0].fechaHora))/60000));
+    const pagosSeleccionados=pagosReconstruidos.filter(p=>lista.some(c=>perteneceACliente(p,c)));
+    if(modoJornadaCobro==="RECONSTRUIDA")minutos=pagosSeleccionados.length>1?Math.max(0,Math.round((fechaMs(pagosSeleccionados.at(-1).fecha||pagosSeleccionados.at(-1).fechaHora)-fechaMs(pagosSeleccionados[0].fecha||pagosSeleccionados[0].fechaHora))/60000)):0;
     return {lista,coordenados,km,cobrado,esperado,minutos};
 }
 
@@ -1172,7 +1185,7 @@ function actualizarMapaCobro(){
 async function guardarJornadaCobroActual(){
     const m=metricasCobroActual(),cobrador=document.getElementById("cobroJornadaCobrador")?.value;
     if(!cobrador?.trim())return alert("Escribe el nombre del cobrador responsable.");
-    const datos={fecha:document.getElementById("cobroJornadaFecha")?.value,periodo:document.getElementById("cobroJornadaPeriodo")?.value,cobrador,ruta:document.getElementById("cobroJornadaRuta")?.value,barrios:[...new Set(m.lista.map(c=>c.lugar).filter(Boolean))],clienteIds:m.lista.map(clienteUid),ordenClienteIds:m.lista.map(clienteUid),montoEsperado:m.esperado,montoCobrado:m.cobrado,distanciaKmEstimada:Number(m.km.toFixed(2)),minutosEstimados:m.minutos,tipo:modoJornadaCobro,estado:modoJornadaCobro==="RECONSTRUIDA"?"CERRADA":"ASIGNADA",pagosIds:pagosReconstruidos.map(p=>p.id).filter(Boolean),usuario:"enterprise"};
+    const datos={fecha:document.getElementById("cobroJornadaFecha")?.value,periodo:document.getElementById("cobroJornadaPeriodo")?.value,cobrador,ruta:document.getElementById("cobroJornadaRuta")?.value,barrios:[...new Set(m.lista.map(c=>c.lugar).filter(Boolean))],clienteIds:m.lista.map(clienteUid),ordenClienteIds:m.lista.map(clienteUid),montoEsperado:m.esperado,montoCobrado:m.cobrado,distanciaKmEstimada:Number(m.km.toFixed(2)),minutosEstimados:m.minutos,tipo:modoJornadaCobro,estado:modoJornadaCobro==="RECONSTRUIDA"?"CERRADA":"ASIGNADA",pagosIds:pagosReconstruidos.filter(p=>m.lista.some(c=>perteneceACliente(p,c))).map(p=>p.id).filter(Boolean),usuario:"enterprise"};
     try{const r=await firebaseEnterprise.guardarJornadaCobro(datos);jornadasCobro.push({...datos,id:r.jornadaId,cantidadClientes:datos.clienteIds.length});renderJornadasCobroGuardadas();alert(modoJornadaCobro==="RECONSTRUIDA"?"Jornada reconstruida y guardada.":"Jornada asignada al cobrador.");}catch(error){alert("No se pudo guardar la jornada de cobro: "+error.message);}
 }
 
@@ -1188,7 +1201,7 @@ function escapeHTML(v){const d=document.createElement("div");d.textContent=Strin
 function escapeAttr(v){return escapeHTML(v).replace(/"/g,"&quot;");}
 function numeroValido(v){return v!==null&&v!==""&&Number.isFinite(Number(v));}
 function fechaMs(v){if(v?.toDate)return v.toDate().getTime();if(typeof v==="number")return v;const n=new Date(v).getTime();return Number.isFinite(n)?n:0;}
-function periodoActual(){return new Date().toISOString().slice(0,7);}
+function periodoActual(){return fechaDiaLocal(new Date()).slice(0,7);}
 function fechaLocalInput(){const d=new Date(Date.now()-new Date().getTimezoneOffset()*60000);return d.toISOString().slice(0,16);}
 function fechaDiaLocal(valor){const ms=valor instanceof Date?valor.getTime():fechaMs(valor);if(!ms)return "";const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 function obtenerPeriodoPago(p){if(p.periodo)return String(p.periodo);if(p.anio&&p.mes)return `${p.anio}-${String(p.mes).padStart(2,"0")}`;const d=new Date(p.fecha||p.fechaHora);return Number.isNaN(d.getTime())?"":`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
