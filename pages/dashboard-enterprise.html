@@ -16,6 +16,7 @@
     <a href="#clientes" class="tab-link" data-tab="clientes">Clientes</a>
     <a href="#solicitudes" class="tab-link" data-tab="solicitudes">Solicitudes</a>
     <a href="#cobros" class="tab-link" data-tab="cobros">Cobros</a>
+    <a href="#jornadas-cobro" class="tab-link" data-tab="jornadas-cobro">Jornadas de cobro</a>
     <a href="#operativo" class="tab-link" data-tab="operativo">Operativo</a>
     <a href="#informes">Informes</a>
     <a href="#archivo">Archivo de Oficina</a>
@@ -57,6 +58,32 @@
         <div class="chart-card"><h3>Incidencias especiales</h3><canvas id="chartIncidencias"></canvas></div>
         <div class="chart-card grande"><h3>Clientes: ingresaron, salieron y permanecen</h3><canvas id="chartClientes"></canvas></div>
     </div>
+</section>
+
+<section id="jornadas-cobro" class="enterprise-section tab-section">
+    <div class="section-head">
+        <div><h2>Jornadas de cobro</h2><p>Reconstruye recorridos anteriores o asigna clientes pendientes a un cobrador.</p></div>
+    </div>
+    <div class="form-grid">
+        <label>Fecha de jornada<input id="cobroJornadaFecha" type="date"></label>
+        <label>Mes que se cobrará<input id="cobroJornadaPeriodo" type="month"></label>
+        <label>Cobrador<input id="cobroJornadaCobrador" placeholder="Nombre del cobrador"></label>
+        <label>Ruta<select id="cobroJornadaRuta"><option value="">Todas</option><option>El Centro</option><option>Ixobel</option><option>La Amistad</option></select></label>
+        <label>Barrio<select id="cobroJornadaBarrio"><option value="">Todos</option></select></label>
+    </div>
+    <div class="acciones">
+        <button class="btn-mini azul" onclick="reconstruirJornadaCobro()">Reconstruir jornada</button>
+        <button class="btn-mini naranja" onclick="cargarPendientesCobro()">Cargar pendientes</button>
+        <button class="btn-mini naranja" onclick="ordenarJornadaCobro()">Ordenar por cercanía</button>
+        <button class="btn-mini verde" onclick="guardarJornadaCobroActual()">Guardar o asignar jornada</button>
+    </div>
+    <div class="metricas-grid" id="metricasJornadaCobro"></div>
+    <div class="operativo-layout">
+        <div class="tabla-scroll tabla-clientes-operativo"><table><thead><tr><th></th><th>Orden</th><th>Cliente</th><th>Barrio</th><th>Mes</th><th>Monto</th><th>Resultado</th></tr></thead><tbody id="tablaJornadaCobro"></tbody></table></div>
+        <div id="mapaJornadaCobro" class="mapa-operativo"></div>
+    </div>
+    <h3 class="subtitulo">Jornadas de cobro guardadas</h3>
+    <div class="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Cobrador</th><th>Tipo</th><th>Clientes</th><th>Esperado</th><th>Cobrado</th><th>Estado</th></tr></thead><tbody id="tablaJornadasCobroGuardadas"></tbody></table></div>
 </section>
 
 <section id="clientes" class="enterprise-section tab-section">

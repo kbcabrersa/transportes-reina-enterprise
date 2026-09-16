@@ -33,6 +33,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /jornadas_cobro/{jornadaId} {
+      allow read, create, update: if true;
+      allow delete: if false;
+    }
+
     match /auditoria/{auditoriaId} {
       allow read, create: if true;
       allow update, delete: if false;

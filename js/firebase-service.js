@@ -54,6 +54,10 @@ export function obtenerAsignacionesOperativas() {
   return obtenerColeccion("jornadas_operativas");
 }
 
+export function obtenerJornadasCobro() {
+  return obtenerColeccion("jornadas_cobro");
+}
+
 export async function actualizarCliente(clienteId, cambios) {
   if (!clienteId) throw new Error("clienteId requerido");
 
@@ -175,6 +179,39 @@ export async function guardarJornadaOperativa(datos) {
     updatedAt: serverTimestamp()
   });
 
+  return { ok: true, jornadaId: jornadaRef.id };
+}
+
+export async function guardarJornadaCobro(datos) {
+  const fecha = String(datos.fecha || "").trim();
+  const cobrador = String(datos.cobrador || "").trim();
+  const clienteIds = Array.isArray(datos.clienteIds) ? datos.clienteIds : [];
+  if (!fecha || !cobrador || !clienteIds.length) {
+    throw new Error("Fecha, cobrador y al menos un cliente son obligatorios.");
+  }
+
+  const jornadaRef = doc(collection(db, "jornadas_cobro"));
+  await setDoc(jornadaRef, {
+    id: jornadaRef.id,
+    fecha,
+    periodo: String(datos.periodo || ""),
+    cobrador,
+    ruta: String(datos.ruta || ""),
+    barrios: Array.isArray(datos.barrios) ? datos.barrios : [],
+    clienteIds,
+    ordenClienteIds: Array.isArray(datos.ordenClienteIds) ? datos.ordenClienteIds : clienteIds,
+    cantidadClientes: clienteIds.length,
+    montoEsperado: Number(datos.montoEsperado || 0),
+    montoCobrado: Number(datos.montoCobrado || 0),
+    distanciaKmEstimada: Number(datos.distanciaKmEstimada || 0),
+    minutosEstimados: Number(datos.minutosEstimados || 0),
+    tipo: String(datos.tipo || "ASIGNADA"),
+    estado: String(datos.estado || "ASIGNADA"),
+    pagosIds: Array.isArray(datos.pagosIds) ? datos.pagosIds : [],
+    usuario: String(datos.usuario || "enterprise"),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
   return { ok: true, jornadaId: jornadaRef.id };
 }
 

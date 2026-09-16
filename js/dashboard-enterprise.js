@@ -8,12 +8,19 @@ let solicitudes = [];
 let atenciones = [];
 let noAtendidos = [];
 let jornadasOperativas = [];
+let jornadasCobro = [];
 let firebaseEnterprise = {};
 let seleccionOperativa = new Set();
 let ordenOperativo = [];
 let mapaEdicion = null;
 let mapaOperacion = null;
 let capaOperacion = null;
+let seleccionCobro = new Set();
+let ordenCobro = [];
+let modoJornadaCobro = "ASIGNADA";
+let pagosReconstruidos = [];
+let mapaCobro = null;
+let capaCobro = null;
 
 let paginaClientes = 1;
 const CLIENTES_POR_PAGINA = 20;
@@ -30,23 +37,27 @@ async function cargarDatosEnterprise(){
             obtenerEventosOperativos,
             obtenerSolicitudes,
             obtenerAsignacionesOperativas,
+            obtenerJornadasCobro,
             actualizarCliente,
             registrarPagoManual,
-            guardarJornadaOperativa
+            guardarJornadaOperativa,
+            guardarJornadaCobro
         } = await import("/js/firebase-service.js?v=20260916-1");
 
         firebaseEnterprise = {
             actualizarCliente,
             registrarPagoManual,
-            guardarJornadaOperativa
+            guardarJornadaOperativa,
+            guardarJornadaCobro
         };
 
-        const [c, p, operativo, s, jornadas] = await Promise.all([
+        const [c, p, operativo, s, jornadas, cobrosJornadas] = await Promise.all([
             obtenerClientes(),
             obtenerPagos(),
             obtenerEventosOperativos(),
             obtenerSolicitudes(),
-            obtenerAsignacionesOperativas()
+            obtenerAsignacionesOperativas(),
+            obtenerJornadasCobro()
         ]);
 
         clientes = Array.isArray(c) ? c : [];
@@ -57,6 +68,7 @@ async function cargarDatosEnterprise(){
 
         solicitudes = Array.isArray(s) ? s : [];
         jornadasOperativas = Array.isArray(jornadas) ? jornadas : [];
+        jornadasCobro = Array.isArray(cobrosJornadas) ? cobrosJornadas : [];
 
         const operaciones = Array.isArray(operativo) ? operativo : [];
 
@@ -87,6 +99,7 @@ async function cargarDatosEnterprise(){
         renderSolicitudes();
         renderCobros();
         prepararOperativo();
+        prepararJornadasCobro();
         registrarClickGraficas();
 
         console.info("Enterprise cargado desde Firebase", {
@@ -461,6 +474,7 @@ function activarTabs(){
             document.getElementById(tab)?.classList.add("active");
             window.location.hash = tab;
             if(tab === "operativo") setTimeout(()=>mapaOperacion?.invalidateSize(), 80);
+            if(tab === "jornadas-cobro") setTimeout(()=>mapaCobro?.invalidateSize(), 80);
         });
     });
 }
@@ -1052,6 +1066,121 @@ function renderJornadas(){
     tbody.innerHTML=jornadasOperativas.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(j=>`<tr><td>${escapeHTML(j.fecha||"")}</td><td>${escapeHTML(j.piloto||"")}</td><td>${escapeHTML(j.vehiculo||"—")}</td><td>${Number(j.cantidadClientes||j.clienteIds?.length||0)}</td><td>${Number(j.distanciaKmEstimada||0).toFixed(1)} km</td><td>${duracion(j.minutosEstimados||0)}</td><td>${escapeHTML(j.estado||"")}</td></tr>`).join("")||`<tr><td colspan="7">No hay jornadas guardadas.</td></tr>`;
 }
 
+/* =========================================================
+   JORNADAS DE COBRO: RECONSTRUCCION Y ASIGNACION
+   ========================================================= */
+
+function prepararJornadasCobro(){
+    const fecha=document.getElementById("cobroJornadaFecha");
+    const periodo=document.getElementById("cobroJornadaPeriodo");
+    if(fecha&&!fecha.value)fecha.value=fechaDiaLocal(new Date());
+    if(periodo&&!periodo.value)periodo.value=periodoActual();
+    const barrio=document.getElementById("cobroJornadaBarrio");
+    if(barrio){
+        const actual=barrio.value;
+        const barrios=[...new Set(clientes.map(c=>String(c.lugar||"").trim()).filter(Boolean))].sort();
+        barrio.innerHTML=`<option value="">Todos</option>`+barrios.map(b=>`<option ${b===actual?"selected":""}>${escapeHTML(b)}</option>`).join("");
+    }
+    renderJornadaCobro();
+    renderJornadasCobroGuardadas();
+    iniciarMapaCobro();
+}
+
+function filtrosJornadaCobro(cliente){
+    const ruta=document.getElementById("cobroJornadaRuta")?.value||"";
+    const barrio=document.getElementById("cobroJornadaBarrio")?.value||"";
+    return (!ruta||normalizar(cliente?.ruta)===normalizar(ruta))&&(!barrio||String(cliente?.lugar||"")===barrio);
+}
+
+function reconstruirJornadaCobro(){
+    const fecha=document.getElementById("cobroJornadaFecha")?.value;
+    const cobrador=normalizar(document.getElementById("cobroJornadaCobrador")?.value);
+    if(!fecha)return alert("Selecciona la fecha que deseas reconstruir.");
+    pagosReconstruidos=eventos.filter(esPago).filter(p=>{
+        const cliente=clientes.find(c=>perteneceACliente(p,c));
+        return fechaDiaLocal(p.fecha||p.fechaHora)===fecha&&(!cobrador||normalizar(p.usuario).includes(cobrador))&&cliente&&filtrosJornadaCobro(cliente)&&String(p.estado||"ACTIVO")!=="ANULADO";
+    }).sort((a,b)=>fechaMs(a.fecha||a.fechaHora)-fechaMs(b.fecha||b.fechaHora));
+    const ids=[];
+    pagosReconstruidos.forEach(p=>{const c=clientes.find(x=>perteneceACliente(p,x));const id=c&&clienteUid(c);if(id&&!ids.includes(id))ids.push(id);});
+    seleccionCobro=new Set(ids); ordenCobro=ids; modoJornadaCobro="RECONSTRUIDA";
+    renderJornadaCobro(); actualizarMapaCobro();
+    if(!ids.length)alert("No se encontraron pagos para esos filtros.");
+}
+
+function cargarPendientesCobro(){
+    const periodo=document.getElementById("cobroJornadaPeriodo")?.value||periodoActual();
+    const pagados=new Set(eventos.filter(esPago).filter(p=>obtenerPeriodoPago(p)===periodo&&String(p.estado||"ACTIVO")!=="ANULADO").map(p=>{
+        const c=clientes.find(x=>perteneceACliente(p,x));return c?clienteUid(c):String(p.clienteId||"");
+    }));
+    const pendientes=clientes.filter(c=>activo(c)&&filtrosJornadaCobro(c)&&!pagados.has(clienteUid(c)));
+    seleccionCobro=new Set(pendientes.map(clienteUid)); ordenCobro=pendientes.map(clienteUid); pagosReconstruidos=[]; modoJornadaCobro="ASIGNADA";
+    renderJornadaCobro(); actualizarMapaCobro();
+}
+
+function datosFilaCobro(cliente){
+    const periodo=document.getElementById("cobroJornadaPeriodo")?.value||periodoActual();
+    const pagos=pagosReconstruidos.filter(p=>perteneceACliente(p,cliente));
+    return {periodo:pagos[0]?obtenerPeriodoPago(pagos[0]):periodo,monto:pagos.length?sumaMonto(pagos):Number(cliente.precio||0),resultado:pagos.length?"Cobrado":"Pendiente"};
+}
+
+function renderJornadaCobro(){
+    const tbody=document.getElementById("tablaJornadaCobro");if(!tbody)return;
+    const lista=ordenCobro.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionCobro.has(clienteUid(c)));
+    tbody.innerHTML=lista.length?lista.map((c,i)=>{const d=datosFilaCobro(c);return `<tr><td><input type="checkbox" data-cobro-id="${escapeAttr(clienteUid(c))}" checked></td><td>${i+1}</td><td>${escapeHTML(c.nombre||"")}</td><td>${escapeHTML(c.lugar||"")}</td><td>${escapeHTML(d.periodo)}</td><td>${moneda(d.monto)}</td><td>${d.resultado}</td></tr>`;}).join(""):`<tr><td colspan="7">Usa “Reconstruir jornada” o “Cargar pendientes”.</td></tr>`;
+    tbody.querySelectorAll("[data-cobro-id]").forEach(check=>check.onchange=()=>{const id=check.dataset.cobroId;if(check.checked)seleccionCobro.add(id);else{seleccionCobro.delete(id);ordenCobro=ordenCobro.filter(x=>x!==id);}renderJornadaCobro();actualizarMapaCobro();});
+    actualizarMetricasCobro();
+}
+
+function ordenarJornadaCobro(){
+    const puntos=clientes.filter(c=>seleccionCobro.has(clienteUid(c))&&numeroValido(c.lat)&&numeroValido(c.lng));
+    if(!puntos.length)return alert("Los clientes seleccionados no tienen coordenadas válidas.");
+    const restantes=[...puntos],orden=[];let actual=restantes.shift();orden.push(actual);
+    while(restantes.length){let mejor=0,distancia=Infinity;restantes.forEach((c,i)=>{const d=haversine(actual,c);if(d<distancia){distancia=d;mejor=i;}});actual=restantes.splice(mejor,1)[0];orden.push(actual);}
+    const sinCoordenadas=clientes.filter(c=>seleccionCobro.has(clienteUid(c))&&!orden.some(o=>clienteUid(o)===clienteUid(c)));
+    ordenCobro=[...orden,...sinCoordenadas].map(clienteUid);renderJornadaCobro();actualizarMapaCobro();
+}
+
+function metricasCobroActual(){
+    const lista=ordenCobro.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionCobro.has(clienteUid(c)));
+    const coordenados=lista.filter(c=>numeroValido(c.lat)&&numeroValido(c.lng));let km=0;
+    for(let i=1;i<coordenados.length;i++)km+=haversine(coordenados[i-1],coordenados[i]);
+    const cobrado=modoJornadaCobro==="RECONSTRUIDA"?sumaMonto(pagosReconstruidos.filter(p=>lista.some(c=>perteneceACliente(p,c)))):0;
+    const esperado=lista.reduce((s,c)=>s+Number(c.precio||0),0);
+    let minutos=Math.round((km/18)*60)+lista.length*4;
+    if(modoJornadaCobro==="RECONSTRUIDA"&&pagosReconstruidos.length>1)minutos=Math.max(0,Math.round((fechaMs(pagosReconstruidos.at(-1).fecha||pagosReconstruidos.at(-1).fechaHora)-fechaMs(pagosReconstruidos[0].fecha||pagosReconstruidos[0].fechaHora))/60000));
+    return {lista,coordenados,km,cobrado,esperado,minutos};
+}
+
+function actualizarMetricasCobro(){
+    const el=document.getElementById("metricasJornadaCobro");if(!el)return;const m=metricasCobroActual();
+    el.innerHTML=[["Modo",modoJornadaCobro==="RECONSTRUIDA"?"Reconstruida":"Asignación"],["Clientes",m.lista.length],["Esperado",moneda(m.esperado)],["Cobrado",moneda(m.cobrado)],["Distancia",`${m.km.toFixed(1)} km`],["Tiempo",duracion(m.minutos)]].map(([t,v])=>tarjetaMetrica(t,v)).join("");
+}
+
+function iniciarMapaCobro(){
+    const contenedor=document.getElementById("mapaJornadaCobro");if(!contenedor||!window.L||mapaCobro)return;
+    mapaCobro=L.map(contenedor).setView([16.3267,-89.4227],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap"}).addTo(mapaCobro);capaCobro=L.layerGroup().addTo(mapaCobro);setTimeout(()=>mapaCobro.invalidateSize(),100);
+}
+
+function actualizarMapaCobro(){
+    if(!mapaCobro||!capaCobro)return;capaCobro.clearLayers();
+    const puntos=ordenCobro.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionCobro.has(clienteUid(c))&&numeroValido(c.lat)&&numeroValido(c.lng));
+    puntos.forEach((c,i)=>L.marker([Number(c.lat),Number(c.lng)]).bindTooltip(`${i+1}. ${escapeHTML(c.nombre||"")}`).addTo(capaCobro));
+    if(puntos.length>1)L.polyline(puntos.map(c=>[Number(c.lat),Number(c.lng)]),{color:"#FB8C00",weight:4}).addTo(capaCobro);
+    if(puntos.length)mapaCobro.fitBounds(L.latLngBounds(puntos.map(c=>[Number(c.lat),Number(c.lng)])).pad(.12));
+}
+
+async function guardarJornadaCobroActual(){
+    const m=metricasCobroActual(),cobrador=document.getElementById("cobroJornadaCobrador")?.value;
+    if(!cobrador?.trim())return alert("Escribe el nombre del cobrador responsable.");
+    const datos={fecha:document.getElementById("cobroJornadaFecha")?.value,periodo:document.getElementById("cobroJornadaPeriodo")?.value,cobrador,ruta:document.getElementById("cobroJornadaRuta")?.value,barrios:[...new Set(m.lista.map(c=>c.lugar).filter(Boolean))],clienteIds:m.lista.map(clienteUid),ordenClienteIds:m.lista.map(clienteUid),montoEsperado:m.esperado,montoCobrado:m.cobrado,distanciaKmEstimada:Number(m.km.toFixed(2)),minutosEstimados:m.minutos,tipo:modoJornadaCobro,estado:modoJornadaCobro==="RECONSTRUIDA"?"CERRADA":"ASIGNADA",pagosIds:pagosReconstruidos.map(p=>p.id).filter(Boolean),usuario:"enterprise"};
+    try{const r=await firebaseEnterprise.guardarJornadaCobro(datos);jornadasCobro.push({...datos,id:r.jornadaId,cantidadClientes:datos.clienteIds.length});renderJornadasCobroGuardadas();alert(modoJornadaCobro==="RECONSTRUIDA"?"Jornada reconstruida y guardada.":"Jornada asignada al cobrador.");}catch(error){alert("No se pudo guardar la jornada de cobro: "+error.message);}
+}
+
+function renderJornadasCobroGuardadas(){
+    const tbody=document.getElementById("tablaJornadasCobroGuardadas");if(!tbody)return;
+    tbody.innerHTML=jornadasCobro.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(j=>`<tr><td>${escapeHTML(j.fecha||"")}</td><td>${escapeHTML(j.cobrador||"")}</td><td>${j.tipo==="RECONSTRUIDA"?"Reconstruida":"Asignada"}</td><td>${Number(j.cantidadClientes||j.clienteIds?.length||0)}</td><td>${moneda(j.montoEsperado)}</td><td>${moneda(j.montoCobrado)}</td><td>${escapeHTML(j.estado||"")}</td></tr>`).join("")||`<tr><td colspan="7">No hay jornadas de cobro guardadas.</td></tr>`;
+}
+
 /* UTILIDADES COMPARTIDAS */
 function opcionesRuta(actual){return ["El Centro","Ixobel","La Amistad"].map(r=>`<option ${normalizar(r)===normalizar(actual)?"selected":""}>${r}</option>`).join("");}
 function normalizar(v){return String(v||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
@@ -1061,6 +1190,7 @@ function numeroValido(v){return v!==null&&v!==""&&Number.isFinite(Number(v));}
 function fechaMs(v){if(v?.toDate)return v.toDate().getTime();if(typeof v==="number")return v;const n=new Date(v).getTime();return Number.isFinite(n)?n:0;}
 function periodoActual(){return new Date().toISOString().slice(0,7);}
 function fechaLocalInput(){const d=new Date(Date.now()-new Date().getTimezoneOffset()*60000);return d.toISOString().slice(0,16);}
+function fechaDiaLocal(valor){const ms=valor instanceof Date?valor.getTime():fechaMs(valor);if(!ms)return "";const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
 function obtenerPeriodoPago(p){if(p.periodo)return String(p.periodo);if(p.anio&&p.mes)return `${p.anio}-${String(p.mes).padStart(2,"0")}`;const d=new Date(p.fecha||p.fechaHora);return Number.isNaN(d.getTime())?"":`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
 function nombreCliente(id){return clientes.find(c=>[c.id,c.globalUuid].map(String).includes(String(id)))?.nombre||"Cliente";}
 function moneda(v){return "Q"+Number(v||0).toLocaleString("es-GT",{minimumFractionDigits:2,maximumFractionDigits:2});}
