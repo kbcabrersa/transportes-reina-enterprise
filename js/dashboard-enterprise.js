@@ -15,6 +15,13 @@ let ordenOperativo = [];
 let mapaEdicion = null;
 let mapaOperacion = null;
 let capaOperacion = null;
+// Operativo 2 comparte el mapa original entre sus tres vistas.
+let eventosOperativos = [];
+let vistaOperativa = 'asignar';
+let filasAvance = [];
+let reconstruccionOperativa = null;
+let guardandoOperativo = false;
+const coloresOperativos = {PENDIENTE:'#f2c94c', ATENDIDO:'#238636', NO_ATENDIDO:'#d32f2f', INACTIVO:'#757575'};
 let seleccionCobro = new Set();
 let ordenCobro = [];
 let modoJornadaCobro = "ASIGNADA";
@@ -43,14 +50,15 @@ async function cargarDatosEnterprise(){
             registrarPagoManual,
             guardarJornadaOperativa,
             guardarJornadaCobro
-        } = await import("/js/firebase-service.js?v=20260916-1");
+        } = await import("/js/firebase-service.js?v=20260917-2");
 
         firebaseEnterprise = {
             actualizarCliente,
             crearCliente,
             registrarPagoManual,
             guardarJornadaOperativa,
-            guardarJornadaCobro
+            guardarJornadaCobro,
+            obtenerEventosOperativos
         };
 
         const [c, p, operativo, s, jornadas, cobrosJornadas] = await Promise.all([
@@ -73,6 +81,7 @@ async function cargarDatosEnterprise(){
         jornadasCobro = Array.isArray(cobrosJornadas) ? cobrosJornadas : [];
 
         const operaciones = Array.isArray(operativo) ? operativo : [];
+        eventosOperativos = operaciones;
 
         // El dashboard antiguo espera fecha y tipos
         // "atencion" / "no_atendido". Firestore usa
@@ -275,10 +284,10 @@ function renderSolicitudes(){
     tbody.innerHTML = solicitudes.length ? solicitudes.map(s=>`
         <tr>
             <td>${formatearFecha(s.fechaSolicitud)}</td>
-            <td>${s.nombreCompleto || ""}</td>
-            <td>${s.barrio || ""}</td>
-            <td>${s.tipoServicio || ""}</td>
-            <td>${s.estado || ""}</td>
+            <td>${escapeHTML(s.nombreCompleto || "")}</td>
+            <td>${escapeHTML(s.barrio || "")}</td>
+            <td>${escapeHTML(s.tipoServicio || "")}</td>
+            <td>${escapeHTML(s.estado || "")}</td>
         </tr>
     `).join("") : `<tr><td colspan="5">Sin solicitudes.</td></tr>`;
 }
@@ -302,7 +311,7 @@ function abrirPerfilCliente(cliente){
             <button class="cerrar-modal" onclick="this.closest('.cliente-modal').remove()">×</button>
 
             <div class="ficha-top">
-                <img src="${foto}" class="foto-ficha-pro">
+                <img src="${escapeAttr(foto)}" class="foto-ficha-pro">
 
                 <div class="ficha-titulo">
                     <h2>${escapeHTML(cliente.nombre || "Cliente sin nombre")}</h2>
@@ -311,7 +320,7 @@ function abrirPerfilCliente(cliente){
                 </div>
 
                 <button class="btn-mini naranja" onclick="window.print()">Exportar Ficha PDF</button>
-                <button class="btn-mini azul" onclick="abrirEditorClientePorId('${escapeAttr(cliente.id)}')">Editar cliente y ubicación</button>
+                <button class="btn-mini azul" data-editar-perfil>Editar cliente y ubicación</button>
             </div>
 
             <div class="resumen-cliente">
@@ -333,7 +342,7 @@ function abrirPerfilCliente(cliente){
                     <p><strong>Día de Pago:</strong> ${escapeHTML(cliente.diaPago || "")}</p>
                     <p><strong>Tipo de Servicio:</strong> ${escapeHTML(cliente.tipoServicio || "")}</p>
                     <p><strong>Precio:</strong> Q${escapeHTML(cliente.precio || "0")}</p>
-                    <p><strong>Ubicación:</strong> ${cliente.lat || ""}, ${cliente.lng || ""}</p>
+                    <p><strong>Ubicación:</strong> ${escapeHTML(cliente.lat || "")}, ${escapeHTML(cliente.lng || "")}</p>
                 </div>
 
                 <div class="indicadores-pro">
@@ -357,8 +366,8 @@ function abrirPerfilCliente(cliente){
                                 <tr>
                                     <td>${formatearFecha(ev.fecha)}</td>
                                     <td>${escapeHTML(categoriaEvento(ev))}</td>
-                                    <td>${traducirEvento(ev.tipo)}</td>
-                                    <td>${ev.usuario || "Sistema"}</td>
+                                    <td>${escapeHTML(traducirEvento(ev.tipo))}</td>
+                                    <td>${escapeHTML(ev.usuario || "Sistema")}</td>
                                 </tr>
                             `).join("")
                             : `<tr><td colspan="4">Este cliente aún no tiene historial registrado.</td></tr>`
@@ -369,6 +378,7 @@ function abrirPerfilCliente(cliente){
         </div>
     `;
 
+    modal.querySelector("[data-editar-perfil]").onclick = () => abrirEditorClientePorId(cliente.id);
     document.body.appendChild(modal);
 }
 
@@ -483,7 +493,7 @@ function activarTabs(){
 
 function activarTabDesdeHash(){
     const hash = window.location.hash.replace("#","") || "dashboard";
-    const link = document.querySelector('.tab-link[data-tab="' + hash + '"]');
+    const link = [...document.querySelectorAll('.tab-link')].find(link => link.dataset.tab === hash);
     const section = document.getElementById(hash);
 
     if(link && section){
@@ -565,14 +575,15 @@ function renderSolicitudes(){
     const lista = filtrarSolicitudes();
 
     tbody.innerHTML = lista.length ? lista.map(s=>`
-        <tr onclick='abrirFichaSolicitud(${JSON.stringify(s).replace(/'/g,"&#39;")})'>
+        <tr>
             <td>${formatearFecha(s.fechaSolicitud)}</td>
-            <td>${s.nombreCompleto || ""}</td>
-            <td>${s.barrio || ""}</td>
-            <td>${s.tipoServicio || ""}</td>
-            <td>${s.estado || ""}</td>
+            <td>${escapeHTML(s.nombreCompleto || "")}</td>
+            <td>${escapeHTML(s.barrio || "")}</td>
+            <td>${escapeHTML(s.tipoServicio || "")}</td>
+            <td>${escapeHTML(s.estado || "")}</td>
         </tr>
     `).join("") : `<tr><td colspan="5">Sin solicitudes.</td></tr>`;
+    [...tbody.rows].forEach((fila,i) => { if(lista[i])fila.onclick = () => abrirFichaSolicitud(lista[i]); });
 }
 
 function filtrarSolicitudes(){
@@ -614,7 +625,7 @@ function abrirFichaSolicitud(s){
         );
 
     const maps = s.lat && s.lng
-        ? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(s.lng)-0.003},${Number(s.lat)-0.003},${Number(s.lng)+0.003},${Number(s.lat)+0.003}&layer=mapnik&marker=${s.lat},${s.lng}`
+        ? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(s.lng)-0.003},${Number(s.lat)-0.003},${Number(s.lng)+0.003},${Number(s.lat)+0.003}&layer=mapnik&marker=${Number(s.lat)},${Number(s.lng)}`
         : "";
 
     const modal = document.createElement("div");
@@ -625,12 +636,12 @@ function abrirFichaSolicitud(s){
             <button class="cerrar-modal" onclick="this.closest('.cliente-modal').remove()">×</button>
 
             <div class="ficha-top">
-                <img src="${foto}" class="foto-ficha-pro">
+                <img src="${escapeAttr(foto)}" class="foto-ficha-pro">
 
                 <div class="ficha-titulo">
-                    <h2>${s.nombreCompleto || "Solicitud sin nombre"}</h2>
-                    <p>Solicitud ID: ${s.idSolicitud || ""}</p>
-                    <span class="estado activo">${s.estado || "PENDIENTE"}</span>
+                    <h2>${escapeHTML(s.nombreCompleto || "Solicitud sin nombre")}</h2>
+                    <p>Solicitud ID: ${escapeHTML(s.idSolicitud || "")}</p>
+                    <span class="estado activo">${escapeHTML(s.estado || "PENDIENTE")}</span>
                 </div>
             </div>
 
@@ -638,10 +649,10 @@ function abrirFichaSolicitud(s){
                 <div class="info-box">
                     <h3>Datos de la Solicitud</h3>
                     <p><strong>Fecha:</strong> ${formatearFecha(s.fechaSolicitud)}</p>
-                    <p><strong>Nombre:</strong> ${s.nombreCompleto || ""}</p>
-                    <p><strong>Teléfono:</strong> ${s.telefono || ""}</p>
-                    <p><strong>Barrio:</strong> ${s.barrio || ""}</p>
-                    <p><strong>Tipo:</strong> ${s.tipoServicio || ""}</p>
+                    <p><strong>Nombre:</strong> ${escapeHTML(s.nombreCompleto || "")}</p>
+                    <p><strong>Teléfono:</strong> ${escapeHTML(s.telefono || "")}</p>
+                    <p><strong>Barrio:</strong> ${escapeHTML(s.barrio || "")}</p>
+                    <p><strong>Tipo:</strong> ${escapeHTML(s.tipoServicio || "")}</p>
                 </div>
 
                 <div class="info-box">
@@ -655,13 +666,14 @@ function abrirFichaSolicitud(s){
             </div>
 
             <div class="acciones-solicitud">
-                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','APROBADA')" class="btn-mini verde">Aprobar y crear cliente</button>
-                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','DENEGADA')" class="btn-mini rojo">Denegar</button>
-                <button onclick="cambiarEstadoSolicitud('${s.idSolicitud}','EN_REVISION')" class="btn-mini naranja">En revisión</button>
+                <button data-estado-solicitud="APROBADA" class="btn-mini verde">Aprobar y crear cliente</button>
+                <button data-estado-solicitud="DENEGADA" class="btn-mini rojo">Denegar</button>
+                <button data-estado-solicitud="EN_REVISION" class="btn-mini naranja">En revisión</button>
             </div>
         </div>
     `;
 
+    modal.querySelectorAll("[data-estado-solicitud]").forEach(b => b.onclick = () => cambiarEstadoSolicitud(s.idSolicitud,b.dataset.estadoSolicitud));
     document.body.appendChild(modal);
 }
 
@@ -1033,7 +1045,7 @@ function abrirPagoManual(clientePreseleccionado){
 
 function prepararOperativo(){
     const fecha = document.getElementById("jornadaFecha");
-    if (fecha && !fecha.value) fecha.value = fechaDiaLocal(new Date());
+    if (fecha && !fecha.value) fecha.value = fechaGuatemala(new Date());
     const barrio = document.getElementById("jornadaBarrio");
     if (barrio) {
         const actual = barrio.value;
@@ -1041,6 +1053,8 @@ function prepararOperativo(){
         barrio.innerHTML = `<option value="">Todos</option>` + barrios.map(b=>`<option ${b===actual?"selected":""}>${escapeHTML(b)}</option>`).join("");
     }
     renderTablaOperacion(); renderJornadas(); iniciarMapaOperacion();
+    document.getElementById(vistaOperativa==='asignar'?'operativoPlanLayout':'mapaOperacionCompartido').appendChild(document.getElementById("mapaOperativo"));
+    if(vistaOperativa!=="asignar")actualizarSelectoresOperativos();else actualizarMapaOperacion();
 }
 
 function seleccionarGrupoOperativo(){
@@ -1060,7 +1074,7 @@ function renderTablaOperacion(){
         if (ia >= 0 || ib >= 0) return (ia < 0 ? 99999 : ia) - (ib < 0 ? 99999 : ib);
         return String(a.nombre).localeCompare(String(b.nombre));
     });
-    tbody.innerHTML = lista.map(c => { const id=clienteUid(c), orden=ordenOperativo.indexOf(id); return `<tr><td><input type="checkbox" data-operativo-id="${escapeAttr(id)}" ${seleccionOperativa.has(id)?"checked":""}></td><td>${orden>=0?orden+1:"—"}</td><td>${escapeHTML(c.nombre||"")}</td><td>${escapeHTML(c.lugar||"")}</td><td>${escapeHTML(c.ruta||"")}</td><td>${numeroValido(c.lat)&&numeroValido(c.lng)?"Sí":"No"}</td></tr>`; }).join("");
+    tbody.innerHTML = lista.map(c => { const id=clienteUid(c), orden=ordenOperativo.indexOf(id); return `<tr><td><input type="checkbox" data-operativo-id="${escapeAttr(id)}" ${seleccionOperativa.has(id)?"checked":""}></td><td>${orden>=0?orden+1:"—"}</td><td>${escapeHTML(c.nombre||"")}</td><td>${escapeHTML(c.lugar||"")}</td><td>${escapeHTML(c.ruta||"")}</td><td>${gpsOperativo(c)?"Sí":"No"}</td></tr>`; }).join("");
     tbody.querySelectorAll("[data-operativo-id]").forEach(check => check.onchange = () => {
         const id=check.dataset.operativoId;
         if(check.checked){seleccionOperativa.add(id); if(!ordenOperativo.includes(id)) ordenOperativo.push(id);}else{seleccionOperativa.delete(id); ordenOperativo=ordenOperativo.filter(x=>x!==id);}
@@ -1070,7 +1084,7 @@ function renderTablaOperacion(){
 }
 
 function optimizarSeleccionOperativa(){
-    const puntos = clientes.filter(c => seleccionOperativa.has(clienteUid(c)) && numeroValido(c.lat) && numeroValido(c.lng));
+    const puntos = clientes.filter(c => seleccionOperativa.has(clienteUid(c)) && gpsOperativo(c));
     if (!puntos.length) return alert("Los clientes seleccionados no tienen coordenadas válidas.");
     const restantes = [...puntos]; const orden=[]; let actual=restantes.shift(); orden.push(actual);
     while(restantes.length){
@@ -1091,16 +1105,13 @@ function iniciarMapaOperacion(){
 }
 
 function actualizarMapaOperacion(){
-    if(!mapaOperacion||!capaOperacion)return; capaOperacion.clearLayers();
-    const puntos=ordenOperativo.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionOperativa.has(clienteUid(c))&&numeroValido(c.lat)&&numeroValido(c.lng));
-    puntos.forEach((c,i)=>L.marker([Number(c.lat),Number(c.lng)]).bindTooltip(`${i+1}. ${escapeHTML(c.nombre||"")}`).addTo(capaOperacion));
-    if(puntos.length>1)L.polyline(puntos.map(c=>[Number(c.lat),Number(c.lng)]),{color:"#1565C0",weight:4}).addTo(capaOperacion);
-    if(puntos.length)mapaOperacion.fitBounds(L.latLngBounds(puntos.map(c=>[Number(c.lat),Number(c.lng)])).pad(.12));
+    if(vistaOperativa!=='asignar')return renderAvanceOperativo();
+    pintarMapaOperativo(ordenOperativo.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionOperativa.has(clienteUid(c))).map(cliente=>({cliente,estado:activo(cliente)?'PENDIENTE':'INACTIVO'})));
 }
 
 function metricasOperacion(){
     const lista=ordenOperativo.map(id=>clientes.find(c=>clienteUid(c)===id)).filter(c=>c&&seleccionOperativa.has(clienteUid(c)));
-    const coordenados=lista.filter(c=>numeroValido(c.lat)&&numeroValido(c.lng)); let km=0;
+    const coordenados=lista.filter(c=>gpsOperativo(c)); let km=0;
     for(let i=1;i<coordenados.length;i++)km+=haversine(coordenados[i-1],coordenados[i]);
     const minutosServicio=lista.reduce((s,c)=>s+minutosPorServicio(c),0);
     const minutosTraslado=Math.round((km/18)*60);
@@ -1109,18 +1120,24 @@ function metricasOperacion(){
 
 function actualizarMetricasOperacion(){
     const el=document.getElementById("metricasOperativas"); if(!el)return; const m=metricasOperacion();
+    setText("mensajeAsignacion",m.lista.length>m.coordenados?`${m.lista.length-m.coordenados} clientes sin coordenadas válidas: aparecen solo en la tabla.`:"");
     el.innerHTML=[["Clientes",m.lista.length],["Con coordenadas",`${m.coordenados}/${m.lista.length}`],["Distancia estimada",`${m.km.toFixed(1)} km`],["Tiempo estimado",duracion(m.minutos)]].map(([t,v])=>tarjetaMetrica(t,v)).join("");
 }
 
 async function guardarAsignacionOperativa(){
+    if(guardandoOperativo)return;
     const m=metricasOperacion();
+    if(!document.getElementById('jornadaPiloto').value.trim())return alert('Escribe el nombre del operador responsable.');
+    if(!m.lista.length)return alert('Selecciona al menos un cliente.');
     const datos={fecha:document.getElementById("jornadaFecha")?.value,piloto:document.getElementById("jornadaPiloto")?.value,ayudantes:document.getElementById("jornadaAyudantes")?.value,vehiculo:document.getElementById("jornadaVehiculo")?.value,ruta:document.getElementById("jornadaRuta")?.value,barrios:[...new Set(m.lista.map(c=>c.lugar).filter(Boolean))],clienteIds:m.lista.map(clienteUid),ordenClienteIds:m.lista.map(clienteUid),distanciaKmEstimada:Number(m.km.toFixed(2)),minutosEstimados:m.minutos,usuario:"enterprise"};
-    try{const r=await firebaseEnterprise.guardarJornadaOperativa(datos);jornadasOperativas.push({...datos,id:r.jornadaId,estado:"ASIGNADA"});renderJornadas();alert("Jornada asignada correctamente.");}catch(error){alert("No se pudo guardar la jornada: "+error.message);}
+    const boton=document.getElementById('guardarAsignacion');guardandoOperativo=true;boton.disabled=true;
+    try{const r=await firebaseEnterprise.guardarJornadaOperativa(datos);incorporarJornadaOperativa(r.jornada);renderJornadas();actualizarSelectoresOperativos();actualizarMapaOperacion();alert("Jornada asignada correctamente.");}catch(error){alert("No se pudo guardar la jornada: "+error.message);}
+    finally{guardandoOperativo=false;boton.disabled=false;}
 }
 
 function renderJornadas(){
     const tbody=document.getElementById("tablaJornadas");if(!tbody)return;
-    tbody.innerHTML=jornadasOperativas.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(j=>`<tr><td>${escapeHTML(j.fecha||"")}</td><td>${escapeHTML(j.piloto||"")}</td><td>${escapeHTML(j.vehiculo||"—")}</td><td>${Number(j.cantidadClientes||j.clienteIds?.length||0)}</td><td>${Number(j.distanciaKmEstimada||0).toFixed(1)} km</td><td>${duracion(j.minutosEstimados||0)}</td><td>${escapeHTML(j.estado||"")}</td></tr>`).join("")||`<tr><td colspan="7">No hay jornadas guardadas.</td></tr>`;
+    tbody.innerHTML=jornadasOperativas.sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(j=>`<tr><td>${escapeHTML(j.fecha||"")}</td><td>${escapeHTML(j.operadorNombre||j.piloto||"")}</td><td>${escapeHTML(j.vehiculo||"—")}</td><td>${Number(j.cantidadClientes||j.clienteIds?.length||0)}</td><td>${Number(j.distanciaKmEstimada||0).toFixed(1)} km</td><td>${duracion(j.minutosEstimados||0)}</td><td>${escapeHTML(j.tipo||"ASIGNACION")} / ${escapeHTML(j.estado||"")}</td></tr>`).join("")||`<tr><td colspan="7">No hay jornadas guardadas.</td></tr>`;
 }
 
 /* =========================================================
@@ -1260,3 +1277,149 @@ function haversine(a,b){const r=6371,toRad=x=>x*Math.PI/180,dLat=toRad(Number(b.
 document.addEventListener("input", event => {
     if (["buscarCobro","mesCobros","origenCobros"].includes(event.target.id)) renderCobros();
 });
+
+function operadorNormalizado(v){ return normalizar(v).replace(/\s+/g,' '); }
+function operadorDeJornada(j){ return j.operadorId || operadorNormalizado(j.operadorNombre || j.piloto); }
+function fechaGuatemala(v){
+    const ms = v instanceof Date ? v.getTime() : fechaMs(v);
+    if (!Number.isFinite(ms) || !ms || !Number.isFinite(new Date(ms).getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Guatemala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ms));
+}
+function horaGuatemala(v){return fechaMs(v) ? new Date(fechaMs(v)).toLocaleTimeString('es-GT',{timeZone:'America/Guatemala',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : '—';}
+function gpsOperativo(c){return numeroValido(c.lat)&&numeroValido(c.lng)&&Math.abs(Number(c.lat))<=90&&Math.abs(Number(c.lng))<=180;}
+function clienteDeEvento(e){
+    const uuid=String(e.clienteUuid ?? '').trim();
+    if(uuid) return clientes.find(c=>[c.globalUuid,c.clienteUuid,c.id].filter(Boolean).map(String).includes(uuid));
+    const id=String(e.clienteId ?? '').trim();
+    if(!id)return null;
+    // No asociar IDs locales Android numéricos a otros dispositivos ni por nombre.
+    return clientes.find(c=>[c.globalUuid,c.id].filter(Boolean).map(String).includes(id));
+}
+function eventosDelDia(fecha, operador=''){
+    return eventosOperativos.filter(e=>['ATENDIDO','NO_ATENDIDO'].includes(String(e.tipo).toUpperCase())&&fechaGuatemala(e.fechaHora)===fecha&&
+        (!operador || (e.operadorId ? String(e.operadorId)===operador : operadorNormalizado(e.operadorNombre||e.usuario)===operador)))
+        .sort((a,b)=>fechaMs(a.fechaHora)-fechaMs(b.fechaHora)||String(a.id).localeCompare(String(b.id)));
+}
+function filasDeAsignacion(j){
+    const ids=[...new Set([...(j.ordenClienteIds||[]).filter(id=>(j.clienteIds||[]).includes(id)),...(j.clienteIds||[])])];
+    const ultimos=new Map();
+    eventosDelDia(j.fecha).forEach(e=>{const c=clienteDeEvento(e);if(c)ultimos.set(clienteUid(c),e);});
+    return ids.map(id=>{
+        const c=clientes.find(c=>[clienteUid(c),String(c.id)].includes(String(id)));
+        const evento=c&&ultimos.get(clienteUid(c));
+        return {cliente:c||{id,nombre:`Cliente no disponible (${id})`,activo:true},evento,
+            estado:c&&!activo(c)?'INACTIVO':evento?String(evento.tipo).toUpperCase():'PENDIENTE',operador:j.operadorNombre||j.piloto||''};
+    });
+}
+function cambiarVistaOperativa(v){
+    vistaOperativa=v;
+    document.getElementById(v==='asignar'?'operativoPlanLayout':'mapaOperacionCompartido').appendChild(document.getElementById('mapaOperativo'));
+    if(v==='asignar')reconstruccionOperativa=null;
+    document.querySelectorAll('[data-vista-operativa]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vistaOperativa===v)));
+    document.getElementById('operativoAsignar').hidden=v!=='asignar';
+    document.getElementById('operativoConsulta').hidden=v==='asignar';
+    document.getElementById('reconstruirOperativo').hidden=v!=='historial';
+    document.getElementById('guardarReconstruccion').hidden=v!=='historial';
+    if(v==='asignar') actualizarMapaOperacion(); else actualizarSelectoresOperativos();
+    setTimeout(()=>mapaOperacion?.invalidateSize(),80);
+}
+function actualizarSelectoresOperativos(operadores=true){
+    const fecha=document.getElementById('operativoFecha');
+    if(!fecha.value)fecha.value=fechaGuatemala(new Date());
+    const selector=document.getElementById('operativoOperador');
+    if(operadores){
+        const anterior=selector.value, opciones=new Map();
+        jornadasOperativas.filter(j=>j.fecha===fecha.value).forEach(j=>opciones.set(operadorDeJornada(j),j.operadorNombre||j.piloto));
+        if(vistaOperativa==='historial')eventosDelDia(fecha.value).forEach(e=>{const nombre=e.operadorNombre||e.usuario;if(nombre)opciones.set(e.operadorId||operadorNormalizado(nombre),nombre);});
+        selector.replaceChildren(new Option(vistaOperativa==='historial'?'Todos / sin filtro':'Seleccione operador',''), ...[...opciones].map(([id,n])=>new Option(n,id)));
+        if(opciones.has(anterior))selector.value=anterior;
+    }
+    const jornada=document.getElementById('operativoJornada'), anterior=jornada.value;
+    const lista=jornadasOperativas.filter(j=>j.fecha===fecha.value&&(!selector.value||operadorDeJornada(j)===selector.value)&&(vistaOperativa==='historial'||j.tipo!=='RECONSTRUIDA'));
+    jornada.replaceChildren(new Option('Seleccione una jornada',''),...lista.map(j=>new Option(`${j.operadorNombre||j.piloto} · ${j.tipo||'ASIGNACION'} · ${j.vehiculo||'Sin vehículo'}`,j.id)));
+    if(lista.some(j=>j.id===anterior))jornada.value=anterior;
+    else if(lista.length===1&&selector.value)jornada.value=lista[0].id;
+    cargarJornadaOperativa();
+}
+function cargarJornadaOperativa(){
+    reconstruccionOperativa=null;
+    const j=jornadasOperativas.find(j=>j.id===document.getElementById('operativoJornada').value);
+    if(j){document.getElementById('operativoOperador').value=operadorDeJornada(j);}
+    if(j?.tipo==='RECONSTRUIDA'){
+        const ids=new Set(j.eventoIds||[]);
+        const ev=eventosDelDia(j.fecha).filter(e=>ids.has(e.id));
+        reconstruccionOperativa=construirReconstruccion(j.fecha,operadorDeJornada(j),ev);
+        filasAvance=reconstruccionOperativa.filas;
+    }else filasAvance=j?filasDeAsignacion(j):[];
+    renderAvanceOperativo(j?'':'No existe una asignación seleccionada para esta fecha y operador.');
+}
+function construirReconstruccion(fecha,operador,ev=eventosDelDia(fecha,operador)){
+    const visitas=new Map(), validos=[];
+    ev.forEach(e=>{const c=clienteDeEvento(e);if(!c)return;validos.push(e);visitas.set(clienteUid(c),{cliente:c,evento:e,estado:String(e.tipo).toUpperCase(),operador:e.operadorNombre||e.usuario||'Sin operador registrado'});});
+    const filas=[...visitas.values()];
+    return {fecha,operadorId:operador,filas,eventoIds:validos.map(e=>e.id),inicio:validos.length?fechaMs(validos[0].fechaHora):0,fin:validos.length?fechaMs(validos.at(-1).fechaHora):0};
+}
+function reconstruirJornadaOperativa(){
+    const fecha=document.getElementById('operativoFecha').value;
+    if(!fecha)return alert('Selecciona una fecha para reconstruir.');
+    document.getElementById('operativoJornada').value='';
+    reconstruccionOperativa=construirReconstruccion(fecha,document.getElementById('operativoOperador').value);
+    filasAvance=reconstruccionOperativa.filas;
+    renderAvanceOperativo(filasAvance.length?'':'No hay eventos con clientes identificables para reconstruir.');
+}
+function resumenAvance(){
+    const conteo={ATENDIDO:0,NO_ATENDIDO:0,PENDIENTE:0,INACTIVO:0};
+    filasAvance.forEach(f=>conteo[f.estado]++);
+    const activos=filasAvance.length-conteo.INACTIVO;
+    const puntos=filasAvance.map(f=>f.cliente).filter(gpsOperativo);
+    let km=0;for(let i=1;i<puntos.length;i++)km+=haversine(puntos[i-1],puntos[i]);
+    return {...conteo,total:filasAvance.length,avance:activos?(conteo.ATENDIDO+conteo.NO_ATENDIDO)/activos*100:0,km,sinGPS:filasAvance.length-puntos.length};
+}
+function renderAvanceOperativo(mensaje=''){
+    const m=resumenAvance();
+    setText('mensajeOperativo',[mensaje,m.sinGPS?`${m.sinGPS} clientes sin coordenadas válidas: aparecen solo en la tabla.`:''].filter(Boolean).join(' '));
+    document.getElementById('avisoReconstruccion').hidden=!reconstruccionOperativa;
+    const metricas=[['Total asignados',m.total],['Atendidos',m.ATENDIDO],['No atendidos',m.NO_ATENDIDO],['Pendientes',m.PENDIENTE],['Inactivos',m.INACTIVO],['Avance',`${m.avance.toFixed(1)}%`]];
+    if(reconstruccionOperativa){const r=reconstruccionOperativa;metricas.push(['Clientes visitados',m.total],['Inicio',horaGuatemala(r.inicio)],['Final',horaGuatemala(r.fin)],['Duración',duracion((r.fin-r.inicio)/60000)],['Distancia aproximada',`${m.km.toFixed(2)} km`]);}
+    document.getElementById('metricasAvance').innerHTML=metricas.map(([t,v])=>tarjetaMetrica(t,v)).join('');
+    document.getElementById('tablaAvance').innerHTML=filasAvance.map((f,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(f.cliente.nombre)}</td><td>${escapeHTML(f.cliente.lugar||'')}</td><td>${escapeHTML(f.cliente.ruta||'')}</td><td><span style="color:${coloresOperativos[f.estado]}">●</span> ${f.estado}</td><td>${horaGuatemala(f.evento?.fechaHora)}</td><td>${escapeHTML(f.operador)}</td></tr>`).join('');
+    pintarMapaOperativo(filasAvance);
+}
+function pintarMapaOperativo(filas){
+    if(!capaOperacion)return;
+    capaOperacion.clearLayers();const puntos=[];
+    filas.forEach((f,i)=>{const c=f.cliente;if(!gpsOperativo(c))return;const punto=[Number(c.lat),Number(c.lng)];puntos.push(punto);
+        L.circleMarker(punto,{radius:9,color:coloresOperativos[f.estado],fillColor:coloresOperativos[f.estado],fillOpacity:.9,weight:2})
+            .bindTooltip(`${i+1}. ${escapeHTML(c.nombre||'')} · ${escapeHTML(c.lugar||'')} · ${f.estado}${f.evento?' · '+horaGuatemala(f.evento.fechaHora):''}`).addTo(capaOperacion);
+    });
+    if(puntos.length>1)L.polyline(puntos,{color:'#1565C0',weight:3,dashArray:reconstruccionOperativa?'6 6':null}).addTo(capaOperacion);
+    if(puntos.length)mapaOperacion.fitBounds(L.latLngBounds(puntos).pad(.12));
+}
+async function recargarEventosOperativos(){
+    try{eventosOperativos=await firebaseEnterprise.obtenerEventosOperativos();
+        if(reconstruccionOperativa&&!document.getElementById('operativoJornada').value)reconstruirJornadaOperativa();else cargarJornadaOperativa();
+    }catch(e){setText('mensajeOperativo','No se pudieron recargar los eventos: '+e.message);}
+}
+function cargarListaOperador(){
+    const fecha=document.getElementById('jornadaFecha').value,op=operadorNormalizado(document.getElementById('jornadaPiloto').value);
+    const j=jornadasOperativas.find(j=>j.fecha===fecha&&operadorDeJornada(j)===op&&j.tipo!=='RECONSTRUIDA');
+    ordenOperativo=[...(j?.ordenClienteIds||j?.clienteIds||[])];seleccionOperativa=new Set(j?.clienteIds||[]);
+    for(const [id,campo] of [['jornadaAyudantes','ayudantes'],['jornadaVehiculo','vehiculo']])document.getElementById(id).value=j?.[campo]||'';
+    document.getElementById('jornadaRuta').value=j?.ruta||'';
+    document.getElementById('jornadaBarrio').value=j?.barrios?.length===1?j.barrios[0]:'';
+    renderTablaOperacion();actualizarMapaOperacion();
+}
+async function guardarReconstruccionOperativa(){
+    if(guardandoOperativo)return;
+    const r=reconstruccionOperativa;
+    if(!r?.filas.length)return alert('No hay eventos para reconstruir.');
+    const op=document.getElementById('operativoOperador');
+    if(!op.value)return alert('Selecciona un operador para guardar su reconstrucción.');
+    const m=resumenAvance();
+    const datos={tipo:'RECONSTRUIDA',fecha:r.fecha,operadorNombre:op.selectedOptions[0].textContent,clienteIds:r.filas.map(f=>clienteUid(f.cliente)),ordenClienteIds:r.filas.map(f=>clienteUid(f.cliente)),eventoIds:r.eventoIds,atendidos:m.ATENDIDO,noAtendidos:m.NO_ATENDIDO,inicio:r.inicio,fin:r.fin,minutosEstimados:(r.fin-r.inicio)/60000,distanciaKmEstimada:m.km,usuario:'enterprise'};
+    const boton=document.getElementById('guardarReconstruccion');guardandoOperativo=true;boton.disabled=true;
+    try{const resultado=await firebaseEnterprise.guardarJornadaOperativa(datos);incorporarJornadaOperativa(resultado.jornada);renderJornadas();actualizarSelectoresOperativos();document.getElementById('operativoJornada').value=resultado.jornadaId;cargarJornadaOperativa();alert('Reconstrucción guardada.');}
+    catch(e){alert('No se pudo guardar la reconstrucción: '+e.message);}
+    finally{guardandoOperativo=false;boton.disabled=false;}
+}
+function incorporarJornadaOperativa(j){jornadasOperativas=jornadasOperativas.filter(x=>x.id!==j.id);jornadasOperativas.push(j);}

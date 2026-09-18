@@ -259,5 +259,138 @@
       check(document.querySelector('#jornadaFecha').value==='2026-09-30','Día adelantado por UTC');
     }finally{window.Date=RealDate;}
   });
+  const opFecha='2026-09-15';
+  const opBase={fecha:opFecha,piloto:'Óscar   Uno',clienteIds:['test-c1','test-c2','test-c3','test-c4'],ordenClienteIds:['test-c3','test-c1','test-c2','test-c4'],distanciaKmEstimada:1,minutosEstimados:20};
+  let asignacionUno;
+  await test('Operativo 2: operadores con listas independientes el mismo día',async()=>{
+    asignacionUno=await service.guardarJornadaOperativa(opBase);
+    await service.guardarJornadaOperativa({...opBase,piloto:'Operador Dos',clienteIds:['test-c2'],ordenClienteIds:['test-c2']});
+    const js=(await rows('jornadas_operativas')).filter(j=>j.fecha===opFecha);
+    check(js.length===2&&js.find(j=>j.operadorId==='operador dos').clienteIds.length===1&&js.find(j=>j.operadorId==='oscar uno').clienteIds.length===4,'Listas mezcladas');
+  });
+  await test('Operativo 2: actualización concurrente idempotente y createdAt conservado',async()=>{
+    const previo=await read('jornadas_operativas',asignacionUno.jornadaId);
+    const resultados=await Promise.all([service.guardarJornadaOperativa({...opBase,piloto:' oscar UNO ',vehiculo:'Actualizado'}),service.guardarJornadaOperativa({...opBase,vehiculo:'Actualizado'})]);
+    const js=(await rows('jornadas_operativas')).filter(j=>j.fecha===opFecha&&j.operadorId==='oscar uno');
+    check(js.length===1&&resultados.every(r=>r.jornadaId===asignacionUno.jornadaId)&&js[0].vehiculo==='Actualizado','Duplicación');
+    check(js[0].createdAt.toMillis()===previo.createdAt.toMillis(),'createdAt sobrescrito');
+  });
+  const opEventos=[
+    {id:'op2-a',clienteUuid:'test-c1',tipo:'NO_ATENDIDO',fechaHora:'2026-09-15T13:00:00Z'},
+    {id:'op2-b',clienteUuid:'test-c2',tipo:'ATENDIDO',fechaHora:'2026-09-15T14:00:00Z'},
+    {id:'op2-c',clienteUuid:'test-c1',tipo:'ATENDIDO',fechaHora:'2026-09-15T15:00:00Z'},
+    {id:'op2-d',clienteUuid:'test-c2',tipo:'NO_ATENDIDO',fechaHora:'2026-09-16T02:30:00Z'},
+    {id:'op2-inactivo',clienteUuid:'test-c4',tipo:'ATENDIDO',fechaHora:'2026-09-15T16:00:00Z'},
+    {id:'op2-fuera',clienteUuid:'test-c1',tipo:'NO_ATENDIDO',fechaHora:'2026-09-16T06:00:00Z'},
+    {id:'op2-nombre',clienteNombre:'Cliente sin GPS',tipo:'ATENDIDO',fechaHora:'2026-09-15T17:00:00Z'},
+    {id:'op2-uuid-ajeno',clienteUuid:'desconocido',clienteId:'test-c3',clienteNombre:'Cliente sin GPS',tipo:'ATENDIDO',fechaHora:'2026-09-15T17:01:00Z'}
+  ].map(e=>({...e,usuario:'Óscar Uno'}));
+  for(const e of opEventos)await setDoc(doc(db,'operativo_eventos',e.id),e);
+  await cargarDatosEnterprise();
+  click('[data-tab="operativo"]');cambiarVistaOperativa('actual');
+  field('#operativoFecha',opFecha);actualizarSelectoresOperativos();field('#operativoOperador','oscar uno');actualizarSelectoresOperativos(false);
+  const estadoFila=id=>filasAvance.find(f=>clienteUid(f.cliente)===id)?.estado;
+  const marcador=id=>{const c=clientes.find(c=>clienteUid(c)===id);return capaOperacion.getLayers().find(l=>l instanceof L.CircleMarker&&l.getLatLng().lat===Number(c.lat)&&l.getLatLng().lng===Number(c.lng));};
+  await test('Operativo 2: atendido verde',()=>check(estadoFila('test-c1')==='ATENDIDO'&&marcador('test-c1').options.fillColor==='#238636','No verde'));
+  await test('Operativo 2: no atendido rojo',()=>check(estadoFila('test-c2')==='NO_ATENDIDO'&&marcador('test-c2').options.fillColor==='#d32f2f','No rojo'));
+  await test('Operativo 2: pendiente amarillo y sin evento',()=>{
+    check(estadoFila('test-c3')==='PENDIENTE','Sin evento no pendiente');
+    const c=clientes.find(c=>c.id==='test-c3');c.lat=16.37;c.lng=-89.47;renderAvanceOperativo();
+    check(marcador('test-c3').options.fillColor==='#f2c94c','No amarillo');c.lat=null;c.lng=null;renderAvanceOperativo();
+  });
+  await test('Operativo 2: inactivo gris prevalece sobre evento',()=>{
+    const c=clientes.find(c=>c.id==='test-c4');c.lat=16.38;c.lng=-89.48;renderAvanceOperativo();
+    check(estadoFila('test-c4')==='INACTIVO'&&marcador('test-c4').options.fillColor==='#757575','No gris');c.lat=null;c.lng=null;renderAvanceOperativo();
+  });
+  await test('Operativo 2: sin GPS en tabla sin marcador y orden conservado',()=>{
+    check(document.querySelectorAll('#tablaAvance tr').length===4&&capaOperacion.getLayers().filter(l=>l instanceof L.CircleMarker).length===2,'GPS inventado o fila perdida');
+    check(marcador('test-c1').getTooltip().getContent().startsWith('2.'),'Número cambiado al omitir GPS');
+    check(document.querySelector('#mensajeOperativo').textContent.includes('2 clientes sin coordenadas'),'Sin aviso GPS');
+  });
+  await test('Operativo 2: avance sobre activos y cero sin activos',()=>{
+    check(Math.abs(resumenAvance().avance-200/3)<.001,'Avance incorrecto');
+    const anteriores=filasAvance;filasAvance=[anteriores.find(f=>f.estado==='INACTIVO')];check(resumenAvance().avance===0,'Avance sin activos');filasAvance=anteriores;
+  });
+  await test('Operativo 2: último evento, Guatemala y UUID prioritario',()=>{
+    check(filasAvance.find(f=>f.cliente.id==='test-c1').evento.id==='op2-c','Último incorrecto');
+    check(filasAvance.find(f=>f.cliente.id==='test-c2').evento.id==='op2-d','No respeta medianoche Guatemala');
+    check(fechaGuatemala('2026-09-16T05:59:59Z')===opFecha&&fechaGuatemala('2026-09-16T06:00:00Z')==='2026-09-16','Límite diario');
+    check(!clienteDeEvento(opEventos.at(-1))&&!clienteDeEvento(opEventos.at(-2)),'Cruce inseguro');
+    check(clienteDeEvento({clienteId:'test-c3'}).id==='test-c3','Respaldo clienteId no funciona');
+  });
+  await test('Operativo 2: cambios de operador, fecha y carga de asignación antigua',async()=>{
+    field('#operativoOperador','operador dos');actualizarSelectoresOperativos(false);check(filasAvance.length===1&&filasAvance[0].cliente.id==='test-c2','Lista otro operador');
+    await setDoc(doc(db,'jornadas_operativas','legacy-op'),{fecha:'2026-09-14',piloto:'Piloto antiguo',clienteIds:['test-c1'],estado:'ASIGNADA'});
+    jornadasOperativas=await service.obtenerAsignacionesOperativas();field('#operativoFecha','2026-09-14');actualizarSelectoresOperativos();field('#operativoOperador','piloto antiguo');actualizarSelectoresOperativos(false);
+    check(filasAvance.length===1,'Asignación antigua no carga');
+    field('#operativoFecha','2026-09-13');actualizarSelectoresOperativos();check(!filasAvance.length&&!capaOperacion.getLayers().length,'Mapa obsoleto');
+  });
+  await test('Operativo 2: actualizar asignación antigua reutiliza su documento',async()=>{
+    const resultado=await service.guardarJornadaOperativa({...opBase,fecha:'2026-09-14',piloto:' PILOTO ANTIGUO '});
+    check(resultado.jornadaId==='legacy-op','Duplicó asignación antigua');
+    check((await rows('jornadas_operativas')).filter(j=>j.fecha==='2026-09-14').length===1,'Jornada duplicada');
+  });
+  await test('Operativo 2: filtro de operador exacto, Timestamp y milisegundos Android',()=>{
+    const ms=Date.parse('2026-09-16T02:30:00Z');
+    check(fechaGuatemala(ms)===opFecha&&fechaGuatemala(sdk.Timestamp.fromMillis(ms))===opFecha,'Formato Android o Timestamp incorrecto');
+    const anterior=eventosOperativos;
+    try{
+      eventosOperativos=[...anterior,{id:'otro-operador',clienteUuid:'test-c3',tipo:'ATENDIDO',fechaHora:ms,usuario:'Óscar Uno Dos'}];
+      check(!construirReconstruccion(opFecha,'oscar uno').filas.some(f=>f.cliente.id==='test-c3'),'Filtro parcial de operador');
+      check(construirReconstruccion(opFecha,'').filas.some(f=>f.cliente.id==='test-c3'),'Filtro opcional no funciona');
+    }finally{eventosOperativos=anterior;}
+  });
+  await test('Operativo 2: reconstrucción cronológica y último estado sin clientes inventados',()=>{
+    cambiarVistaOperativa('historial');field('#operativoFecha',opFecha);actualizarSelectoresOperativos();field('#operativoOperador','oscar uno');actualizarSelectoresOperativos(false);reconstruirJornadaOperativa();
+    check(filasAvance.map(f=>f.cliente.id).join(',')==='test-c1,test-c2,test-c4','Orden no cronológico o cliente sin eventos');
+    check(estadoFila('test-c1')==='ATENDIDO'&&estadoFila('test-c2')==='NO_ATENDIDO','Último estado perdido');
+    check(reconstruccionOperativa.inicio===Date.parse('2026-09-15T13:00:00Z')&&reconstruccionOperativa.fin===Date.parse('2026-09-16T02:30:00Z'),'Inicio/final incorrectos');
+    check(!document.querySelector('#avisoReconstruccion').hidden&&document.querySelector('#metricasAvance').textContent.includes('13 h 30 min'),'Duración o aviso ausentes');
+    check(Math.abs(resumenAvance().km-haversine(clientes.find(c=>c.id==='test-c1'),clientes.find(c=>c.id==='test-c2')))<.00001,'Distancia incorrecta');
+  });
+  await test('Operativo 2: guardar reconstrucción dos veces no duplica ni sobrescribe asignación',async()=>{
+    const asignacion=await read('jornadas_operativas',asignacionUno.jornadaId);
+    await guardarReconstruccionOperativa();await guardarReconstruccionOperativa();
+    const js=(await rows('jornadas_operativas')).filter(j=>j.fecha===opFecha&&j.operadorId==='oscar uno');
+    check(js.length===2&&js.filter(j=>j.tipo==='RECONSTRUIDA').length===1,'Duplicado o asignación sobrescrita');
+    const r=js.find(j=>j.tipo==='RECONSTRUIDA');check(r.estado==='CERRADA'&&r.atendidos===2&&r.noAtendidos===1&&r.eventoIds.length===5,'Contrato reconstrucción');
+    check(JSON.stringify(await read('jornadas_operativas',asignacionUno.jornadaId))===JSON.stringify(asignacion),'Asignación cambiada');
+    actualizarSelectoresOperativos();field('#operativoJornada',r.id);cargarJornadaOperativa();check(filasAvance.length===3,'Reconstrucción guardada no carga');
+  });
+  await test('Operativo 2: recarga de eventos actualiza mapa',async()=>{
+    cambiarVistaOperativa('actual');field('#operativoOperador','oscar uno');actualizarSelectoresOperativos(false);
+    await setDoc(doc(db,'operativo_eventos','op2-recarga'),{clienteId:'test-c3',tipo:'ATENDIDO',fechaHora:'2026-09-15T18:00:00Z',usuario:'Óscar Uno'});
+    await recargarEventosOperativos();check(estadoFila('test-c3')==='ATENDIDO'&&resumenAvance().avance===100,'Recarga no aplicada');
+  });
+  await test('Operativo 2: servicio rechaza entradas inválidas sin escrituras',async()=>{
+    const antes=(await rows('jornadas_operativas')).length;
+    for(const extra of [{fecha:''},{fecha:'2026-02-30'},{piloto:' '},{clienteIds:[]},{clienteIds:['']},{ordenClienteIds:['']},{distanciaKmEstimada:-1},{minutosEstimados:Infinity},{minutosEstimados:NaN},{ordenClienteIds:['ajeno']},{tipo:'OTRO'},{cantidadClientes:-1}]){
+      let rechazo=false;try{await service.guardarJornadaOperativa({...opBase,...extra});}catch{rechazo=true;}check(rechazo,'Aceptó '+JSON.stringify(extra));
+    }
+    check((await rows('jornadas_operativas')).length===antes,'Escritura inválida');
+  });
+  await test('Operativo 2: doble clic bloqueado y lista por operador recuperable',async()=>{
+    cambiarVistaOperativa('asignar');field('#jornadaFecha',opFecha);field('#jornadaPiloto','Doble clic');cargarListaOperador();seleccionOperativa=new Set(['test-c1']);ordenOperativo=['test-c1'];
+    const guardado=guardarAsignacionOperativa();check(document.querySelector('#guardarAsignacion').disabled,'Botón habilitado durante guardado');await guardarAsignacionOperativa();await guardado;
+    check((await rows('jornadas_operativas')).filter(j=>j.operadorId==='doble clic').length===1,'Doble clic duplicó');
+    field('#jornadaPiloto','Operador Dos');cargarListaOperador();check(ordenOperativo.join(',')==='test-c2','Lista no restaurada');
+    field('#jornadaPiloto','Doble clic');cargarListaOperador();check(ordenOperativo.join(',')==='test-c1','Lista mezclada');
+  });
+  await test('Operativo 2: textos externos escapados en tabla, mapa e historial',async()=>{
+    const texto='<img src=x onerror="window.opInyectado=true">';
+    const c=clientes.find(c=>c.id==='test-c1'), anterior={nombre:c.nombre,lugar:c.lugar};Object.assign(c,{nombre:texto,lugar:texto});
+    const r=await service.guardarJornadaOperativa({...opBase,piloto:texto,vehiculo:texto,barrios:[texto]});incorporarJornadaOperativa(r.jornada);renderJornadas();
+    filasAvance=filasDeAsignacion(r.jornada);renderAvanceOperativo();
+    check(!document.querySelector('#tablaAvance img')&&!document.querySelector('#tablaJornadas img')&&document.querySelector('#tablaAvance').textContent.includes(texto)&&document.querySelector('#tablaJornadas').textContent.includes(texto),'HTML ejecutable');
+    check(marcador('test-c1').getTooltip().getContent().includes('&lt;img')&&!window.opInyectado,'Tooltip sin escape');Object.assign(c,anterior);
+  });
+  await test('Operativo 2: mensajes sin eventos, sin operador y sin clientes',async()=>{
+    cambiarVistaOperativa('historial');field('#operativoFecha','2020-01-01');actualizarSelectoresOperativos();reconstruirJornadaOperativa();check(document.querySelector('#mensajeOperativo').textContent.includes('No hay eventos'),'Falta aviso');
+    cambiarVistaOperativa('asignar');field('#jornadaPiloto','');await guardarAsignacionOperativa();check(testAlerts.at(-1).includes('operador'),'Falta operador');
+    field('#jornadaPiloto','Vacio');seleccionOperativa.clear();ordenOperativo=[];await guardarAsignacionOperativa();check(testAlerts.at(-1).includes('cliente'),'Faltan clientes');
+  });
+  await test('Operativo 2: reglas siguen impidiendo eliminar jornadas',async()=>{
+    let rechazo=false;try{await deleteDoc(doc(db,'jornadas_operativas',asignacionUno.jornadaId));}catch(e){rechazo=e.code==='permission-denied';}check(rechazo,'Eliminación permitida');
+  });
   return {tests,alerts:testAlerts,project:db.app.options.projectId,database:'default'};
 })()

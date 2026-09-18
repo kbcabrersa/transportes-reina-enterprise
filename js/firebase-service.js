@@ -256,36 +256,83 @@ export async function registrarPagoManual(datos) {
   return { ok: true, pagoId };
 }
 
-export async function guardarJornadaOperativa(datos) {
-  const fecha = String(datos.fecha || "").trim();
-  const piloto = String(datos.piloto || "").trim();
-  const clienteIds = Array.isArray(datos.clienteIds) ? datos.clienteIds : [];
+export function normalizarOperador(nombre) {
+  return normalizarTexto(nombre);
+}
 
-  if (!fecha || !piloto || !clienteIds.length) {
-    throw new Error("Fecha, piloto y al menos un cliente son obligatorios.");
+export async function guardarJornadaOperativa(datos = {}) {
+  const fecha = String(datos.fecha || '').trim();
+  if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(fecha) ||
+      !Number.isFinite(Date.parse(fecha)) || new Date(fecha).toISOString().slice(0,10) !== fecha) {
+    throw new Error('Selecciona una fecha válida.');
   }
-
-  const jornadaRef = doc(collection(db, "jornadas_operativas"));
-  await setDoc(jornadaRef, {
-    id: jornadaRef.id,
-    fecha,
-    piloto,
-    ayudantes: String(datos.ayudantes || "").trim(),
-    vehiculo: String(datos.vehiculo || "").trim(),
-    ruta: String(datos.ruta || "").trim(),
-    barrios: Array.isArray(datos.barrios) ? datos.barrios : [],
-    clienteIds,
-    ordenClienteIds: Array.isArray(datos.ordenClienteIds) ? datos.ordenClienteIds : clienteIds,
-    cantidadClientes: clienteIds.length,
-    distanciaKmEstimada: Number(datos.distanciaKmEstimada || 0),
-    minutosEstimados: Number(datos.minutosEstimados || 0),
-    estado: "ASIGNADA",
-    usuario: String(datos.usuario || "enterprise"),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+  const operadorNombre = String(datos.operadorNombre ?? datos.piloto ?? '').trim().replace(/\s+/g, ' ');
+  if (!operadorNombre) throw new Error('Escribe el nombre del operador responsable.');
+  // Identidad provisional por nombre; sustituible por UID cuando exista directorio.
+  const operadorId = normalizarOperador(operadorNombre);
+  const tipo = datos.tipo ?? 'ASIGNACION';
+  if (!['ASIGNACION', 'RECONSTRUIDA'].includes(tipo)) throw new Error('Tipo de jornada inválido.');
+  const listaIds = (valor, campo) => {
+    if (!Array.isArray(valor) || !valor.length || valor.some(id => typeof id !== 'string' || !id.trim())) {
+      throw new Error(`${campo}: selecciona al menos un elemento, sin IDs vacíos.`);
+    }
+    return [...new Set(valor.map(id => id.trim()))];
+  };
+  const clienteIds = listaIds(datos.clienteIds, 'Clientes');
+  const ordenClienteIds = listaIds(datos.ordenClienteIds ?? clienteIds, 'Orden de clientes');
+  if (clienteIds.length !== ordenClienteIds.length || ordenClienteIds.some(id => !clienteIds.includes(id))) {
+    throw new Error('El orden debe contener exactamente los clientes asignados.');
+  }
+  const numero = (campo, defecto = 0) => {
+    const n = datos[campo] ?? defecto;
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) throw new Error(`${campo}: número inválido.`);
+    return n;
+  };
+  const documento = {
+    fecha, operadorId, operadorNombre, piloto: operadorNombre, tipo,
+    estado: tipo === 'RECONSTRUIDA' ? 'CERRADA' : 'ASIGNADA',
+    ayudantes: String(datos.ayudantes || '').trim(), vehiculo: String(datos.vehiculo || '').trim(),
+    ruta: String(datos.ruta || '').trim(), barrios: datos.barrios ?? [],
+    clienteIds, ordenClienteIds, cantidadClientes: clienteIds.length,
+    distanciaKmEstimada: numero('distanciaKmEstimada'), minutosEstimados: numero('minutosEstimados'),
+    usuario: String(datos.usuario || 'enterprise').trim()
+  };
+  if (!Array.isArray(documento.barrios) || documento.barrios.some(b => typeof b !== 'string' || !b.trim())) {
+    throw new Error('Barrios inválidos.');
+  }
+  if (datos.cantidadClientes !== undefined && numero('cantidadClientes') !== clienteIds.length) throw new Error('Cantidad de clientes incorrecta.');
+  if (tipo === 'RECONSTRUIDA') {
+    documento.eventoIds = listaIds(datos.eventoIds, 'Eventos');
+    for (const campo of ['atendidos', 'noAtendidos', 'inicio', 'fin']) documento[campo] = numero(campo, NaN);
+    if (!Number.isInteger(documento.atendidos) || !Number.isInteger(documento.noAtendidos) ||
+        documento.atendidos + documento.noAtendidos !== clienteIds.length || documento.fin < documento.inicio ||
+        [documento.inicio, documento.fin].some(ms => new Intl.DateTimeFormat('en-CA', {timeZone:'America/Guatemala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ms)) !== fecha)) {
+      throw new Error('Resumen o fechas de reconstrucción inconsistentes.');
+    }
+    documento.minutosEstimados = (documento.fin - documento.inicio) / 60000;
+  }
+  const deterministaId = 'operativo_' + await sha256(JSON.stringify([fecha, operadorId, tipo]));
+  // Reutilizar una asignación anterior con ID aleatorio, sin borrar su historial.
+  // Las escrituras nuevas siguen usando siempre la misma clave determinista.
+  const anteriores = await obtenerAsignacionesOperativas();
+  const legado = anteriores.filter(j => j.id !== deterministaId && j.fecha === fecha &&
+    (j.tipo || 'ASIGNACION') === tipo &&
+    normalizarOperador(j.operadorNombre || j.piloto) === operadorId)
+    .sort((a,b) => String(a.id).localeCompare(String(b.id)))[0];
+  const deterministaRef = doc(db, 'jornadas_operativas', deterministaId);
+  const jornadaId = await runTransaction(db, async transaction => {
+    let jornadaRef = deterministaRef;
+    let anterior = await transaction.get(jornadaRef);
+    if (!anterior.exists() && legado) {
+      jornadaRef = doc(db, 'jornadas_operativas', legado.id);
+      anterior = await transaction.get(jornadaRef);
+    }
+    transaction.set(jornadaRef, {...documento, id:jornadaRef.id,
+      createdAt: anterior.exists() ? anterior.data().createdAt ?? serverTimestamp() : serverTimestamp(),
+      updatedAt: serverTimestamp()});
+    return jornadaRef.id;
   });
-
-  return { ok: true, jornadaId: jornadaRef.id };
+  return {ok:true, jornadaId, jornada:{...documento, id:jornadaId}};
 }
 
 export async function guardarJornadaCobro(datos) {

@@ -140,24 +140,50 @@
 </section>
 
 <section id="operativo" class="enterprise-section tab-section">
-    <div class="section-head"><div><h2>Planificación operativa</h2><p>Asigna barrios o clientes y equilibra distancia, tiempo y alcance.</p></div></div>
-    <div class="operativo-layout">
+    <div class="section-head"><div><h2>Operativo 2</h2><p>Asignaciones por operador y avance por eventos de clientes.</p></div></div>
+    <div class="acciones" aria-label="Vistas de Operativo">
+        <button class="btn-mini azul" data-vista-operativa="asignar" aria-pressed="true" onclick="cambiarVistaOperativa('asignar')">Asignar jornada</button>
+        <button class="btn-mini azul" data-vista-operativa="actual" aria-pressed="false" onclick="cambiarVistaOperativa('actual')">Jornada actual</button>
+        <button class="btn-mini azul" data-vista-operativa="historial" aria-pressed="false" onclick="cambiarVistaOperativa('historial')">Historial y reconstrucción</button>
+    </div>
+    <div id="operativoAsignar">
+    <div id="operativoPlanLayout" class="operativo-layout">
         <div class="panel-operativo">
             <div class="form-grid">
-                <label>Fecha<input id="jornadaFecha" type="date"></label>
-                <label>Piloto<input id="jornadaPiloto" placeholder="Nombre del piloto"></label>
+                <label>Fecha<input id="jornadaFecha" type="date" onchange="cargarListaOperador()"></label>
+                <label>Operador / piloto responsable<input id="jornadaPiloto" required placeholder="Nombre del operador" onchange="cargarListaOperador()"></label>
                 <label>Ayudantes<input id="jornadaAyudantes" placeholder="Nombres"></label>
                 <label>Vehículo<input id="jornadaVehiculo" placeholder="Camión o trimoto"></label>
                 <label>Ruta<select id="jornadaRuta"><option value="">Todas</option><option>El Centro</option><option>Ixobel</option><option>La Amistad</option></select></label>
                 <label>Barrio<select id="jornadaBarrio"><option value="">Todos</option></select></label>
             </div>
-            <div class="acciones"><button class="btn-mini azul" onclick="seleccionarGrupoOperativo()">Seleccionar grupo</button><button class="btn-mini naranja" onclick="optimizarSeleccionOperativa()">Ordenar por cercanía</button><button class="btn-mini verde" onclick="guardarAsignacionOperativa()">Asignar jornada</button></div>
+            <div class="acciones"><button class="btn-mini azul" onclick="seleccionarGrupoOperativo()">Seleccionar grupo</button><button class="btn-mini naranja" onclick="optimizarSeleccionOperativa()">Ordenar por cercanía</button><button class="btn-mini verde" id="guardarAsignacion" onclick="guardarAsignacionOperativa()">Asignar jornada</button></div>
             <div class="metricas-grid" id="metricasOperativas"></div>
+            <p id="mensajeAsignacion" role="status"></p>
             <div class="tabla-scroll tabla-clientes-operativo"><table><thead><tr><th></th><th>Orden</th><th>Cliente</th><th>Barrio</th><th>Ruta</th><th>Coordenadas</th></tr></thead><tbody id="tablaOperacion"></tbody></table></div>
         </div>
         <div id="mapaOperativo" class="mapa-operativo"></div>
     </div>
-    <h3 class="subtitulo">Jornadas guardadas</h3>
+    </div>
+    <div id="operativoConsulta" hidden>
+        <div class="form-grid">
+            <label>Fecha<input id="operativoFecha" type="date" onchange="actualizarSelectoresOperativos()"></label>
+            <label>Operador<select id="operativoOperador" onchange="actualizarSelectoresOperativos(false)"></select></label>
+            <label>Jornada guardada<select id="operativoJornada" onchange="cargarJornadaOperativa()"></select></label>
+        </div>
+        <div class="acciones">
+            <button class="btn-mini azul" onclick="recargarEventosOperativos()">Recargar eventos</button>
+            <button id="reconstruirOperativo" class="btn-mini naranja" onclick="reconstruirJornadaOperativa()">Reconstruir desde eventos</button>
+            <button id="guardarReconstruccion" class="btn-mini verde" onclick="guardarReconstruccionOperativa()">Guardar reconstrucción</button>
+        </div>
+        <p id="mensajeOperativo" role="status"></p>
+        <p id="avisoReconstruccion" hidden>Reconstrucción aproximada entre clientes visitados con eventos ATENDIDO o NO_ATENDIDO, usando sus coordenadas maestras actuales. No representa tracking real del vehículo.</p>
+        <div id="metricasAvance" class="metricas-grid"></div>
+        <div class="tabla-scroll"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Barrio</th><th>Ruta</th><th>Estado</th><th>Hora del último evento</th><th>Operador responsable</th></tr></thead><tbody id="tablaAvance"></tbody></table></div>
+    </div>
+    <div id="mapaOperacionCompartido"></div>
+    <p aria-label="Leyenda de estados"><span style="color:#b58900">● Amarillo: pendiente</span> · <span style="color:#238636">● Verde: atendido</span> · <span style="color:#d32f2f">● Rojo: no atendido</span> · <span style="color:#757575">● Gris: inactivo</span></p>
+    <h3 class="subtitulo">Historial de asignaciones y jornadas</h3>
     <div class="tabla-scroll"><table><thead><tr><th>Fecha</th><th>Piloto</th><th>Vehículo</th><th>Clientes</th><th>Distancia</th><th>Tiempo</th><th>Estado</th></tr></thead><tbody id="tablaJornadas"></tbody></table></div>
 </section>
 
@@ -198,6 +224,6 @@
 </main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="../js/dashboard-enterprise.js?v=20260916-1"></script>
+<script src="../js/dashboard-enterprise.js?v=20260917-2"></script>
 </body>
 </html>
