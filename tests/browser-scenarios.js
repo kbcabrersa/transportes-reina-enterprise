@@ -162,6 +162,85 @@
     field('#filtroSolicitudEstado','CONVERTIDA_CLIENTE');renderSolicitudes();
     check(document.querySelector('#tablaSolicitudes').textContent.includes('Solicitud demo'),'Filtro de convertidas no funciona');
   });
+  const alta = {nombre:'Cliente Manual',telefono:'',ruta:'Ixobel',lugar:'Barrio Nuevo',diaPago:20,tipoServicio:'Basico',precio:70};
+  function formularioAlta(datos = alta) {
+    click('#ingresarCliente');
+    for (const [campo, valor] of Object.entries(datos)) field('#formEditarCliente [name='+campo+']',valor);
+  }
+  await test('Alta mediante formulario, pin, persistencia, auditoría y vistas sin recargar',async()=>{
+    click('[data-tab="clientes"]');
+    const antes=clientes.length, activosAntes=Number(document.querySelector('#dashClientes').textContent);
+    formularioAlta();
+    await new Promise(r=>setTimeout(r,180));
+    check(document.querySelector('#editarLat').value===''&&document.querySelector('#editarLng').value==='','Centro guardado implícitamente');
+    mapaEdicion.marker.setLatLng([16.35,-89.45]);mapaEdicion.marker.fire('dragend');
+    check(Number(document.querySelector('#editarLat').value)===16.35,'Pin no actualiza campos');
+    click('#centrarCoordenadas');
+    await document.querySelector('#guardarCliente').onclick();
+    const c=(await rows('clientes')).find(c=>c.nombre===alta.nombre);
+    check(c&&c.lat===16.35&&c.lng===-89.45,'Coordenadas no persistidas');
+    check(c.globalUuid===c.id&&c.activo&&c.syncStatus==='SYNCED'&&c.originDevice==='WEB_ENTERPRISE'&&typeof c.fechaAlta==='number'&&typeof c.updatedAt==='number','Contrato Android incorrecto');
+    check(clientes.length===antes+1&&document.querySelector('#tablaClientes').textContent.includes(alta.nombre),'Alta no visible sin recargar');
+    check(Number(document.querySelector('#dashClientes').textContent)===activosAntes+1,'KPI no actualizado');
+    check(document.querySelector('#tablaOperacion').textContent.includes(alta.nombre),'Planificación no actualizada');
+    check(document.querySelector('#cobroJornadaBarrio').textContent.includes(alta.lugar),'Barrios de jornadas no actualizados');
+    const esperado=clientes.filter(activo).reduce((total,c)=>total+Number(c.precio||0),0);
+    check(document.querySelector('#metricasCobros').textContent.includes(moneda(esperado)),'Cobros no actualizados');
+    cargarPendientesCobro();
+    check(seleccionCobro.has(c.id),'Nuevo cliente no disponible en jornadas');
+    check(!document.querySelector('#formEditarCliente')&&testAlerts.includes('Cliente ingresado correctamente.'),'Modal o confirmación incorrectos');
+    const audit=(await rows('auditoria')).find(a=>a.entidadId===c.id&&a.accion==='CREAR_CLIENTE');
+    check(audit&&audit.entidad==='CLIENTE'&&audit.usuario==='enterprise'&&audit.origen==='WEB_ENTERPRISE'&&audit.ubicacionAnterior.lat===null&&audit.ubicacionAnterior.lng===null&&audit.ubicacionNueva.lat===c.lat&&audit.ubicacionNueva.lng===c.lng&&audit.cambios.nombre===alta.nombre,'Auditoría incorrecta');
+    check((await rows('identidades_clientes')).some(i=>i.clienteUuid===c.id),'Identidad ausente');
+  });
+  await test('Duplicado con espacios y mayúsculas no deja escrituras parciales',async()=>{
+    const antes=await Promise.all(['clientes','identidades_clientes','auditoria'].map(rows));
+    formularioAlta({...alta,nombre:'  CLIENTE   manual ',lugar:' BARRIO   nuevo '});
+    await document.querySelector('#guardarCliente').onclick();
+    check(testAlerts.at(-1)==='Ya existe un cliente con el mismo nombre, ruta y barrio.','Mensaje de duplicado incorrecto');
+    const despues=await Promise.all(['clientes','identidades_clientes','auditoria'].map(rows));
+    check(antes.every((a,i)=>a.length===despues[i].length),'Duplicado dejó información parcial');
+    cerrarModalCliente(document.querySelector('.cliente-modal'));
+  });
+  await test('Alta sin mover pin y Sin ubicación persisten null',async()=>{
+    for (const limpiar of [false,true]) {
+      formularioAlta({...alta,nombre:'Sin ubicación '+limpiar});
+      await new Promise(r=>setTimeout(r,180));
+      if(limpiar){mapaEdicion.marker.setLatLng([16.36,-89.46]);mapaEdicion.marker.fire('dragend');click('#sinUbicacion');}
+      await document.querySelector('#guardarCliente').onclick();
+      const c=(await rows('clientes')).find(c=>c.nombre==='Sin ubicación '+limpiar);
+      check(c&&c.lat===null&&c.lng===null,'Ubicación inventada');
+    }
+  });
+  await test('Servicio valida alta y rechaza coordenadas incompletas o fuera de rango',async()=>{
+    const antes=(await rows('clientes')).length;
+    for(const extra of [{nombre:' '},{ruta:'Otra'},{lugar:''},{tipoServicio:''},{diaPago:32},{diaPago:1.5},{precio:0},{lat:91,lng:0},{lat:0,lng:181},{lat:16},{lng:-89}]) {
+      let rechazo=false;try{await service.crearCliente({...alta,...extra});}catch{rechazo=true;}
+      check(rechazo,'Servicio aceptó '+JSON.stringify(extra));
+    }
+    check((await rows('clientes')).length===antes,'Alta inválida persistida');
+  });
+  await test('Altas concurrentes reservan una sola identidad',async()=>{
+    const antes=(await rows('auditoria')).length;
+    const resultados=await Promise.allSettled([service.crearCliente({...alta,nombre:'Concurrente'}),service.crearCliente({...alta,nombre:' CONCURRENTE '})]);
+    check(resultados.filter(r=>r.status==='fulfilled').length===1,'Duplicados concurrentes');
+    check((await rows('auditoria')).length===antes+1,'Auditoría concurrente incorrecta');
+  });
+  await test('Alta comparte hash e identidad con conversión de solicitudes',async()=>{
+    let rechazo=false;
+    try{await service.crearCliente({...alta,nombre:' SOLICITUD   DEMO ',ruta:' el CENTRO ',lugar:' EL centro '});}
+    catch(e){rechazo=e.message==='Ya existe un cliente con el mismo nombre, ruta y barrio.';}
+    check(rechazo,'Alta no reconoce identidad de solicitud');
+  });
+  await test('Texto del alta se muestra escapado en tabla y perfil',async()=>{
+    const nombre='<img src=x onerror="window.altaInyectada=true">';
+    formularioAlta({...alta,nombre});
+    await document.querySelector('#guardarCliente').onclick();
+    check(document.querySelector('#tablaClientes').textContent.includes(nombre)&&!document.querySelector('#tablaClientes img'),'HTML interpretado en tabla');
+    abrirPerfilCliente(clientes.find(c=>c.nombre===nombre));
+    check(document.querySelector('.cliente-modal h2').textContent===nombre&&!window.altaInyectada,'HTML interpretado en perfil');
+    cerrarModalCliente(document.querySelector('.cliente-modal'));
+  });
   await test('Reglas: sin eliminación de clientes ni modificación de auditoría',async()=>{
     let denied=false;try{await deleteDoc(doc(db,'clientes','test-c1'));}catch(e){denied=e.code==='permission-denied';}
     check(denied,'El emulador no aplica las reglas a la base default');

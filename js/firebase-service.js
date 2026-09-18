@@ -58,6 +58,63 @@ export function obtenerJornadasCobro() {
   return obtenerColeccion("jornadas_cobro");
 }
 
+export async function crearCliente(entrada = {}) {
+  const datos = {};
+  for (const campo of ["nombre", "telefono", "lugar", "tipoServicio"]) {
+    datos[campo] = String(entrada[campo] ?? "").trim().replace(/\s+/g, " ");
+  }
+  if (!datos.nombre || !datos.lugar || !datos.tipoServicio) {
+    throw new Error("Nombre, barrio y tipo de servicio son obligatorios.");
+  }
+  datos.ruta = ["El Centro", "Ixobel", "La Amistad"].find(r => normalizarTexto(r) === normalizarTexto(entrada.ruta));
+  if (!datos.ruta) throw new Error("Seleccione una ruta válida.");
+  datos.diaPago = Number(entrada.diaPago);
+  datos.precio = Number(entrada.precio);
+  if (!Number.isInteger(datos.diaPago) || datos.diaPago < 1 || datos.diaPago > 31) {
+    throw new Error("El día de pago debe estar entre 1 y 31.");
+  }
+  if (!Number.isFinite(datos.precio) || datos.precio <= 0) throw new Error("El precio debe ser mayor que cero.");
+  const vacio = v => v == null || (typeof v === "string" && !v.trim());
+  datos.lat = vacio(entrada.lat) ? null : Number(entrada.lat);
+  datos.lng = vacio(entrada.lng) ? null : Number(entrada.lng);
+  if (!(datos.lat === null && datos.lng === null) &&
+      (datos.lat === null || datos.lng === null || !Number.isFinite(datos.lat) || !Number.isFinite(datos.lng) ||
+       Math.abs(datos.lat) > 90 || Math.abs(datos.lng) > 180)) {
+    throw new Error("Las coordenadas no son válidas.");
+  }
+  const nombreNormalizado = normalizarTexto(datos.nombre);
+  const rutaNormalizada = normalizarTexto(datos.ruta);
+  const lugarNormalizado = normalizarTexto(datos.lugar);
+  const identityKey = await sha256(nombreNormalizado + "|" + rutaNormalizada + "|" + lugarNormalizado);
+  const clienteRef = doc(collection(db, "clientes"));
+  const identityRef = doc(db, "identidades_clientes", identityKey);
+  const auditoriaRef = doc(collection(db, "auditoria"));
+  const ahora = Date.now();
+  const cliente = {
+    ...datos, nombreNormalizado, rutaNormalizada, lugarNormalizado,
+    globalUuid: clienteRef.id, localIdOrigen: null, serverId: null,
+    activo: true, fechaAlta: ahora, updatedAt: ahora,
+    originDevice: "WEB_ENTERPRISE", syncStatus: "SYNCED"
+  };
+  await runTransaction(db, async transaction => {
+    const identidad = await transaction.get(identityRef);
+    if (identidad.exists()) throw new Error("Ya existe un cliente con el mismo nombre, ruta y barrio.");
+    transaction.set(clienteRef, cliente);
+    transaction.set(identityRef, {
+      clienteUuid: clienteRef.id, identityKey, nombreNormalizado, rutaNormalizada, lugarNormalizado,
+      createdAt: ahora, originDevice: "WEB_ENTERPRISE"
+    });
+    transaction.set(auditoriaRef, {
+      id: auditoriaRef.id, entidad: "CLIENTE", entidadId: clienteRef.id, accion: "CREAR_CLIENTE",
+      usuario: "enterprise", origen: "WEB_ENTERPRISE",
+      ubicacionAnterior: {lat: null, lng: null},
+      ubicacionNueva: {lat: cliente.lat, lng: cliente.lng},
+      cambios: cliente, createdAt: serverTimestamp()
+    });
+  });
+  return {id: clienteRef.id, ...cliente};
+}
+
 export async function actualizarCliente(clienteId, cambios) {
   if (!clienteId) throw new Error("clienteId requerido");
 

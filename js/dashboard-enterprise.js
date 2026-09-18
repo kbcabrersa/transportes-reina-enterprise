@@ -39,6 +39,7 @@ async function cargarDatosEnterprise(){
             obtenerAsignacionesOperativas,
             obtenerJornadasCobro,
             actualizarCliente,
+            crearCliente,
             registrarPagoManual,
             guardarJornadaOperativa,
             guardarJornadaCobro
@@ -46,6 +47,7 @@ async function cargarDatosEnterprise(){
 
         firebaseEnterprise = {
             actualizarCliente,
+            crearCliente,
             registrarPagoManual,
             guardarJornadaOperativa,
             guardarJornadaCobro
@@ -303,8 +305,8 @@ function abrirPerfilCliente(cliente){
                 <img src="${foto}" class="foto-ficha-pro">
 
                 <div class="ficha-titulo">
-                    <h2>${cliente.nombre || "Cliente sin nombre"}</h2>
-                    <p>Cliente ID: ${cliente.id || ""}</p>
+                    <h2>${escapeHTML(cliente.nombre || "Cliente sin nombre")}</h2>
+                    <p>Cliente ID: ${escapeHTML(cliente.id || "")}</p>
                     <span class="estado ${activo(cliente) ? "activo" : "inactivo"}">${activo(cliente) ? "Activo" : "Inactivo"}</span>
                 </div>
 
@@ -316,7 +318,7 @@ function abrirPerfilCliente(cliente){
                 <div><span>Cliente desde</span><strong>${fechaCorta(cliente.updatedAt)}</strong></div>
                 <div><span>Último pago</span><strong>${ultimoEvento(historial, "pago")}</strong></div>
                 <div><span>Última atención</span><strong>${ultimoEvento(historial, "atencion")}</strong></div>
-                <div><span>Servicio</span><strong>${cliente.tipoServicio || "Básico"} - Q${cliente.precio || "0"}</strong></div>
+                <div><span>Servicio</span><strong>${escapeHTML(cliente.tipoServicio || "Básico")} - Q${escapeHTML(cliente.precio || "0")}</strong></div>
             </div>
 
             ${renderMesesCliente(cliente, historial)}
@@ -324,13 +326,13 @@ function abrirPerfilCliente(cliente){
             <div class="ficha-grid-pro">
                 <div class="info-box">
                     <h3>Información del Cliente</h3>
-                    <p><strong>Nombre:</strong> ${cliente.nombre || ""}</p>
-                    <p><strong>Teléfono:</strong> ${cliente.telefono || ""}</p>
-                    <p><strong>Ruta:</strong> ${cliente.ruta || ""}</p>
-                    <p><strong>Lugar:</strong> ${cliente.lugar || ""}</p>
-                    <p><strong>Día de Pago:</strong> ${cliente.diaPago || ""}</p>
-                    <p><strong>Tipo de Servicio:</strong> ${cliente.tipoServicio || ""}</p>
-                    <p><strong>Precio:</strong> Q${cliente.precio || "0"}</p>
+                    <p><strong>Nombre:</strong> ${escapeHTML(cliente.nombre || "")}</p>
+                    <p><strong>Teléfono:</strong> ${escapeHTML(cliente.telefono || "")}</p>
+                    <p><strong>Ruta:</strong> ${escapeHTML(cliente.ruta || "")}</p>
+                    <p><strong>Lugar:</strong> ${escapeHTML(cliente.lugar || "")}</p>
+                    <p><strong>Día de Pago:</strong> ${escapeHTML(cliente.diaPago || "")}</p>
+                    <p><strong>Tipo de Servicio:</strong> ${escapeHTML(cliente.tipoServicio || "")}</p>
+                    <p><strong>Precio:</strong> Q${escapeHTML(cliente.precio || "0")}</p>
                     <p><strong>Ubicación:</strong> ${cliente.lat || ""}, ${cliente.lng || ""}</p>
                 </div>
 
@@ -849,7 +851,11 @@ function abrirEditorClientePorId(id){
     if (cliente) abrirEditorCliente(cliente);
 }
 
-function abrirEditorCliente(cliente){
+function abrirIngresoCliente(){
+    abrirEditorCliente({}, true);
+}
+
+function abrirEditorCliente(cliente, nuevo = false){
     const latInicial = numeroValido(cliente.lat) ? Number(cliente.lat) : 16.3267;
     const lngInicial = numeroValido(cliente.lng) ? Number(cliente.lng) : -89.4227;
     const modal = document.createElement("div");
@@ -857,7 +863,7 @@ function abrirEditorCliente(cliente){
     modal.innerHTML = `
         <div class="cliente-perfil ficha-pro">
             <button class="cerrar-modal" data-cerrar>×</button>
-            <h2>Editar cliente</h2>
+            <h2>${nuevo ? "Ingresar cliente" : "Editar cliente"}</h2>
             <p>Corrige los datos maestros y arrastra el pin hasta la entrada real del cliente.</p>
             <form id="formEditarCliente" class="form-grid">
                 <label>Nombre<input name="nombre" required value="${escapeAttr(cliente.nombre || "")}"></label>
@@ -875,15 +881,41 @@ function abrirEditorCliente(cliente){
                 <input id="editarLng" type="number" step="any" value="${numeroValido(cliente.lng) ? Number(cliente.lng) : ""}">
                 <button class="btn-mini azul" id="centrarCoordenadas">Centrar pin</button>
             </div>
-            <div class="acciones"><button class="btn-mini verde" id="guardarCliente">Guardar cambios</button><button class="btn-mini" data-cerrar>Cancelar</button></div>
+            <div class="acciones"><button class="btn-mini verde" id="guardarCliente">${nuevo ? "Ingresar cliente" : "Guardar cambios"}</button><button class="btn-mini" data-cerrar>Cancelar</button></div>
         </div>`;
     document.body.appendChild(modal);
 
+    const formulario = modal.querySelector("#formEditarCliente");
+    if (nuevo) {
+        for (const campo of ["ruta", "lugar", "diaPago", "tipoServicio", "precio"]) formulario.elements[campo].required = true;
+        formulario.elements.precio.min = "0.01";
+        formulario.elements.precio.value = "";
+        formulario.elements.activo.disabled = true;
+        const sinUbicacion = document.createElement("button");
+        sinUbicacion.type = "button";
+        sinUbicacion.className = "btn-mini";
+        sinUbicacion.id = "sinUbicacion";
+        sinUbicacion.textContent = "Sin ubicación";
+        sinUbicacion.onclick = () => {
+            modal.querySelector("#editarLat").value = "";
+            modal.querySelector("#editarLng").value = "";
+        };
+        modal.querySelector(".coordenadas-editor").appendChild(sinUbicacion);
+    }
+    formulario.onsubmit = ev => { ev.preventDefault(); modal.querySelector("#guardarCliente").click(); };
+    for (const [id, limite, etiqueta] of [["editarLat", 90, "Latitud"], ["editarLng", 180, "Longitud"]]) {
+        const input = modal.querySelector("#" + id);
+        input.min = -limite; input.max = limite;
+        input.setAttribute("aria-label", etiqueta);
+        input.placeholder = etiqueta;
+    }
     modal.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = () => cerrarModalCliente(modal));
     setTimeout(() => { if (modal.isConnected) iniciarMapaEditor(latInicial, lngInicial); }, 50);
     modal.querySelector("#centrarCoordenadas").onclick = () => {
-        const lat = Number(modal.querySelector("#editarLat").value);
-        const lng = Number(modal.querySelector("#editarLng").value);
+        const latTexto = modal.querySelector("#editarLat").value;
+        const lngTexto = modal.querySelector("#editarLng").value;
+        const lat = Number(latTexto), lng = Number(lngTexto);
+        if (!latTexto || !lngTexto || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat)>90 || Math.abs(lng)>180) return alert("Las coordenadas no son válidas.");
         if (mapaEdicion && numeroValido(lat) && numeroValido(lng)) {
             mapaEdicion.marker.setLatLng([lat,lng]);
             mapaEdicion.map.setView([lat,lng], 18);
@@ -900,13 +932,26 @@ function abrirEditorCliente(cliente){
         cambios.lat = modal.querySelector("#editarLat").value === "" ? null : Number(modal.querySelector("#editarLat").value);
         cambios.lng = modal.querySelector("#editarLng").value === "" ? null : Number(modal.querySelector("#editarLng").value);
         if (!(cambios.lat === null && cambios.lng === null) && (!numeroValido(cambios.lat) || !numeroValido(cambios.lng) || Math.abs(cambios.lat)>90 || Math.abs(cambios.lng)>180)) return alert("Las coordenadas no son válidas.");
+        const boton = modal.querySelector("#guardarCliente");
+        if (boton.disabled) return;
+        boton.disabled = true;
         try{
+            if (nuevo) {
+                const creado = await firebaseEnterprise.crearCliente(cambios);
+                clientes.unshift(creado);
+                filtrarClientes();
+                prepararOperativo(); prepararJornadasCobro(); renderCobros(); renderKpis(); renderDashboard();
+                cerrarModalCliente(modal);
+                alert("Cliente ingresado correctamente.");
+                return;
+            }
             await firebaseEnterprise.actualizarCliente(cliente.id, cambios);
             Object.assign(cliente, cambios, {updatedAt: Date.now(), syncStatus:"PENDING"});
             renderClientesPaginados(clientesFiltradosActuales);
             prepararOperativo(); prepararJornadasCobro(); renderCobros(); renderKpis(); renderDashboard();
             cerrarModalCliente(modal);
-        }catch(error){ alert("No se pudo actualizar el cliente: " + error.message); }
+        }catch(error){ alert(nuevo ? error.message : "No se pudo actualizar el cliente: " + error.message); }
+        finally { boton.disabled = false; }
     };
 }
 
